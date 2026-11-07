@@ -1,5 +1,5 @@
 
-name: Extract Project ZIP
+name: Extract Anime Hub Bangla ZIP
 
 on:
   workflow_dispatch:
@@ -10,19 +10,90 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find ZIP File
+        id: findzip
+        run: |
+          echo "Searching for ZIP files..."
+
+          ZIP=$(find . -maxdepth 4 -type f -iname "*.zip" \
+            ! -path "./.git/*" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: No ZIP file found!"
+            echo "Repository files:"
+            find . -maxdepth 3 -type f | head -100
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP"
+          echo "zip_path=$ZIP" >> "$GITHUB_OUTPUT"
 
       - name: Extract ZIP
         run: |
-          unzip -o Anime-Hub-Bangla-Source.zip -d .
-          rm Anime-Hub-Bangla-Source.zip
+          sudo apt-get update
+          sudo apt-get install -y unzip
 
-      - name: Save to GitHub
+          mkdir -p extracted
+
+          unzip -o "${{ steps.findzip.outputs.zip_path }}" \
+            -d extracted
+
+          echo "Extract completed!"
+
+          echo "Extracted files:"
+          find extracted -maxdepth 3 -type f | head -100
+
+      - name: Copy Project Files
+        run: |
+          cp -a extracted/. .
+
+          rm -rf extracted
+
+          echo "Project files copied successfully!"
+
+      - name: Verify Project
+        run: |
+          echo "Checking project structure..."
+
+          test -d apps || {
+            echo "ERROR: apps folder missing"
+            exit 1
+          }
+
+          test -d database || {
+            echo "ERROR: database folder missing"
+            exit 1
+          }
+
+          test -f package.json || {
+            echo "ERROR: package.json missing"
+            exit 1
+          }
+
+          echo "Project structure verified!"
+
+      - name: Commit and Push
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add -A
-          git diff --cached --quiet || git commit -m "Extract project ZIP"
-          git push
-          
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Extract Anime Hub Bangla complete source"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+
+      - name: Completed
+        run: |
+          echo "Anime Hub Bangla ZIP extraction completed!"
