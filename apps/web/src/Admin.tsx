@@ -2,8 +2,7 @@ import './admin.css';
 import { FormEvent, useEffect, useState } from 'react';
 import { LogOut, Plus, RefreshCw, ShieldCheck, Film, Users, Layers } from 'lucide-react';
 import EpisodeManager from './EpisodeManager';
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API = 'https://anime-hub-bangla.onrender.com';
 type User = { email:string; displayName:string; role:string };
 type Summary = { anime:number; episodes:number; users:number };
 type Anime = { id:string; title:string; slug:string; published:boolean };
