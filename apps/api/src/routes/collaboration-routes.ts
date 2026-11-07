@@ -871,7 +871,7 @@ router.get('/projects/:id/applications', requireAuth, async (req, res) => {
   try {
     const userId = auth(req).userId;
 
-    if (!(await canManageProject(req.params.id, userId))) {
+ if (!(await canManageProject(String(req.params.id), userId))) {
       return res.status(403).json({ error: 'Project manager permission required' });
     }
 
@@ -1013,7 +1013,7 @@ router.post('/projects/:id/tasks', requireAuth, async (req, res) => {
   try {
     const userId = auth(req).userId;
 
-    if (!(await canManageProject(req.params.id, userId))) {
+    if (!(await canManageProject(String(req.params.id), userId))) {
       return res.status(403).json({ error: 'Project manager permission required' });
     }
 
