@@ -1,114 +1,31 @@
 
-name: Extract Anime Hub Bangla Project
+name: Create Anime Hub Super Admin
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  extract:
+  create-super-admin:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
+          node-version: 22
 
-      - name: Install Unzip
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
+      - name: Install dependencies
+        working-directory: apps/api
+        run: npm install
 
-      - name: Find ZIP File
-        id: findzip
-        run: |
-          ZIP=$(find . -maxdepth 5 -type f -iname "*.zip" \
-            ! -path "./.git/*" | head -n 1)
-
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: ZIP file not found!"
-            find . -maxdepth 4 -type f
-            exit 1
-          fi
-
-          echo "ZIP found: $ZIP"
-          echo "zip_path=$ZIP" >> "$GITHUB_OUTPUT"
-
-      - name: Extract ZIP
-        run: |
-          mkdir -p extracted
-
-          unzip -o "${{ steps.findzip.outputs.zip_path }}" \
-            -d extracted
-
-          echo "Extraction completed."
-
-          echo "Extracted structure:"
-          find extracted -maxdepth 4 -print | head -200
-
-      - name: Find Correct Project Root
-        id: project
-        run: |
-          ROOT=""
-
-          while IFS= read -r FILE; do
-            DIR=$(dirname "$FILE")
-
-            if [ -d "$DIR/apps" ] && \
-               [ -d "$DIR/database" ]; then
-              ROOT="$DIR"
-              break
-            fi
-          done < <(find extracted -type f -name package.json)
-
-          if [ -z "$ROOT" ]; then
-            echo "ERROR: Project root not found!"
-            echo "Expected apps, database and package.json."
-            find extracted -maxdepth 5 -print
-            exit 1
-          fi
-
-          echo "Project root found: $ROOT"
-          echo "project_root=$ROOT" >> "$GITHUB_OUTPUT"
-
-      - name: Copy Project to Repository Root
-        run: |
-          ROOT="${{ steps.project.outputs.project_root }}"
-
-          cp -a "$ROOT"/. .
-
-          echo "Project copied successfully!"
-
-      - name: Verify Project
-        run: |
-          echo "Checking project..."
-
-          test -d apps
-          test -d database
-          test -f package.json
-
-          echo "All required folders found!"
-
-          ls -la
-
-      - name: Commit and Push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Extract complete Anime Hub Bangla project"
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
-
-      - name: Finished
-        run: |
-          echo "Anime Hub Bangla extraction successful!"
+      - name: Create Super Admin
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
+          SUPER_ADMIN_NAME: Tanvir Ahmed
+        run: npx tsx src/scripts/create-super-admin.ts
