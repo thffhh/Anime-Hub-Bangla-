@@ -16,7 +16,6 @@ import {
   Clapperboard
 } from 'lucide-react';
 import SuperAdmin from './SuperAdmin';
-import Admin from './Admin';
 import AnimeDetails from './AnimeDetails';
 import Account from './Account';
 
@@ -501,7 +500,7 @@ function Home() {
         <span className="footlinks">
           <a href="#privacy">Privacy</a>
           <a href="#terms">Terms</a>
-          <a href="#copyright">Copyright</a>
+          <a href="/super-admin">Admin Login</a>
         </span>
 
       </footer>
@@ -514,7 +513,7 @@ export default function App() {
   const path = window.location.pathname;
   if (path.startsWith('/super-admin')) return <SuperAdmin />;
   if (path.startsWith('/admin')) return <Admin />;
-  if (path.startsWith('/anime/')) return <AnimeDetails />;
+  if (path.startsWith('/admin')) return <SuperAdmin />;
   if (path.startsWith('/account')) return <Account />;
 
   return <Home />;
