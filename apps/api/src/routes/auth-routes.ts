@@ -31,7 +31,13 @@ router.post('/login', async (req, res) => {
     const email = parsed.data.email.toLowerCase().trim();
 
     const result = await pool.query(
-      `SELECT id, email, display_name, password_hash, role, status
+      `SELECT
+        id,
+        email,
+        display_name,
+        password_hash,
+        role,
+        status
        FROM public.users
        WHERE email = $1
        LIMIT 1`,
@@ -40,12 +46,7 @@ router.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // Google-only or password-less accounts cannot use password login.
-    if (
-      !user ||
-      user.status !== 'ACTIVE' ||
-      !user.password_hash
-    ) {
+    if (!user || user.status !== 'ACTIVE' || !user.password_hash) {
       return res.status(401).json({
         error: 'Incorrect email or password'
       });
@@ -86,47 +87,50 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get(
-  '/me',
-  requireAuth,
-  async (req: AuthRequest, res) => {
-    if (!pool) {
-      return res.status(503).json({
-        error: 'Database not configured'
-      });
-    }
-
-    try {
-      const result = await pool.query(
-        `SELECT
-          id,
-          email,
-          display_name AS "displayName",
-          role,
-          status
-         FROM public.users
-         WHERE id = $1
-         LIMIT 1`,
-        [req.auth!.userId]
-      );
-
-      if (!result.rowCount) {
-        return res.status(404).json({
-          error: 'User not found'
-        });
-      }
-
-      return res.json({
-        user: result.rows[0]
-      });
-    } catch (error) {
-      console.error('Account lookup error:', error);
-
-      return res.status(500).json({
-        error: 'Could not load account'
-      });
-    }
+router.get('/me', requireAuth, async (req: AuthRequest, res) => {
+  if (!pool) {
+    return res.status(503).json({
+      error: 'Database not configured'
+    });
   }
-);
+
+  try {
+    const result = await pool.query(
+      `SELECT
+        id,
+        email,
+        display_name AS "displayName",
+        role,
+        status,
+        created_at AS "createdAt"
+       FROM public.users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.userId]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({
+        error: 'User not found'
+      });
+    }
+
+    const user = result.rows[0];
+
+    if (user.status !== 'ACTIVE') {
+      return res.status(403).json({
+        error: 'This account is not active'
+      });
+    }
+
+    return res.json({ user });
+  } catch (error) {
+    console.error('Account lookup error:', error);
+
+    return res.status(500).json({
+      error: 'Could not load account'
+    });
+  }
+});
 
 export default router;
