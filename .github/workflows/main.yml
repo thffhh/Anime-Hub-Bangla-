@@ -1,5 +1,5 @@
 
-name: Extract Anime Hub Bangla ZIP
+name: Extract Anime Hub Bangla Project
 
 on:
   workflow_dispatch:
@@ -17,67 +17,82 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Find ZIP File
-        id: findzip
-        run: |
-          echo "Searching for ZIP files..."
-
-          ZIP=$(find . -maxdepth 4 -type f -iname "*.zip" \
-            ! -path "./.git/*" | head -n 1)
-
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: No ZIP file found!"
-            echo "Repository files:"
-            find . -maxdepth 3 -type f | head -100
-            exit 1
-          fi
-
-          echo "Found ZIP: $ZIP"
-          echo "zip_path=$ZIP" >> "$GITHUB_OUTPUT"
-
-      - name: Extract ZIP
+      - name: Install Unzip
         run: |
           sudo apt-get update
           sudo apt-get install -y unzip
 
+      - name: Find ZIP File
+        id: findzip
+        run: |
+          ZIP=$(find . -maxdepth 5 -type f -iname "*.zip" \
+            ! -path "./.git/*" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: ZIP file not found!"
+            find . -maxdepth 4 -type f
+            exit 1
+          fi
+
+          echo "ZIP found: $ZIP"
+          echo "zip_path=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Extract ZIP
+        run: |
           mkdir -p extracted
 
           unzip -o "${{ steps.findzip.outputs.zip_path }}" \
             -d extracted
 
-          echo "Extract completed!"
+          echo "Extraction completed."
 
-          echo "Extracted files:"
-          find extracted -maxdepth 3 -type f | head -100
+          echo "Extracted structure:"
+          find extracted -maxdepth 4 -print | head -200
 
-      - name: Copy Project Files
+      - name: Find Correct Project Root
+        id: project
         run: |
-          cp -a extracted/. .
+          ROOT=""
 
-          rm -rf extracted
+          while IFS= read -r FILE; do
+            DIR=$(dirname "$FILE")
 
-          echo "Project files copied successfully!"
+            if [ -d "$DIR/apps" ] && \
+               [ -d "$DIR/database" ]; then
+              ROOT="$DIR"
+              break
+            fi
+          done < <(find extracted -type f -name package.json)
+
+          if [ -z "$ROOT" ]; then
+            echo "ERROR: Project root not found!"
+            echo "Expected apps, database and package.json."
+            find extracted -maxdepth 5 -print
+            exit 1
+          fi
+
+          echo "Project root found: $ROOT"
+          echo "project_root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Copy Project to Repository Root
+        run: |
+          ROOT="${{ steps.project.outputs.project_root }}"
+
+          cp -a "$ROOT"/. .
+
+          echo "Project copied successfully!"
 
       - name: Verify Project
         run: |
-          echo "Checking project structure..."
+          echo "Checking project..."
 
-          test -d apps || {
-            echo "ERROR: apps folder missing"
-            exit 1
-          }
+          test -d apps
+          test -d database
+          test -f package.json
 
-          test -d database || {
-            echo "ERROR: database folder missing"
-            exit 1
-          }
+          echo "All required folders found!"
 
-          test -f package.json || {
-            echo "ERROR: package.json missing"
-            exit 1
-          }
-
-          echo "Project structure verified!"
+          ls -la
 
       - name: Commit and Push
         run: |
@@ -90,10 +105,10 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Extract Anime Hub Bangla complete source"
+            git commit -m "Extract complete Anime Hub Bangla project"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
-      - name: Completed
+      - name: Finished
         run: |
-          echo "Anime Hub Bangla ZIP extraction completed!"
+          echo "Anime Hub Bangla extraction successful!"
