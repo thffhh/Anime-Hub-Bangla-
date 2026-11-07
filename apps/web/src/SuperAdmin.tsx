@@ -327,7 +327,7 @@ export default function SuperAdmin() {
       <div className="sa-stat" key={label}>
         <div className="sa-stat-icon"><Icon size={20} /></div>
         <span>{label}</span>
-        <strong>{value ?? '—'}</strong>
+        <strong>{String(value ?? '—')}</strong>
       </div>
     );
   };
