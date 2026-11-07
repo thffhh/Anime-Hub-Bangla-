@@ -10,7 +10,7 @@ import authRoutes from './routes/auth-routes.js';
 import adminRoutes from './routes/admin-routes.js';
 import userRoutes from './routes/user-routes.js';
 import collaborationRoutes from './routes/collaboration-routes.js';
-
+import partnerRoutes from './routes/partner-routes.js';
 const app = express();
 
 // ==========================================
@@ -47,7 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/collaboration', collaborationRoutes);
-
+app.use('/api/collaboration', partnerRoutes);
 // ==========================================
 // HEALTH CHECK
 // ==========================================
