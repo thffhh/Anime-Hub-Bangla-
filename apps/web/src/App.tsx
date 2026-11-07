@@ -511,8 +511,8 @@ function Home() {
 
 export default function App() {
   const path = window.location.pathname;
+
   if (path.startsWith('/super-admin')) return <SuperAdmin />;
-  if (path.startsWith('/admin')) return <Admin />;
   if (path.startsWith('/admin')) return <SuperAdmin />;
   if (path.startsWith('/account')) return <Account />;
 
