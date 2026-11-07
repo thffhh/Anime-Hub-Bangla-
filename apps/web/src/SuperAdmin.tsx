@@ -1,4 +1,4 @@
-
+import PartnerManagement from './PartnerManagement';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Activity, BarChart3, CreditCard, Film, Globe, LayoutDashboard,
@@ -23,6 +23,7 @@ type Section =
   | 'staff'
   | 'operations'
   | 'system';
+  | 'collaborations'
 
 type User = {
   id: string;
@@ -840,6 +841,12 @@ export default function SuperAdmin() {
             </p>
           </section>
         )}
+        
+        {/* COLLABORATION PARTNERS */}
+
+{section === 'collaborations' && (
+  <PartnerManagement token={token} />
+)}
 
         {/* USER MANAGEMENT */}
 
