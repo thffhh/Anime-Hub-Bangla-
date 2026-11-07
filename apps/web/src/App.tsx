@@ -4,7 +4,7 @@ import Admin from './Admin';
 import AnimeDetails from './AnimeDetails';
 import Account from './Account';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
 type Anime = { id:string; slug:string; title:string; synopsis?:string; posterUrl?:string; releaseYear?:number; status:string; genres:string[] };
 const fallback: Anime[] = [
  {id:'demo-1',slug:'sample-adventure',title:'Sample Adventure',synopsis:'A sample title used to demonstrate the catalogue layout. Replace with licensed Bangla-dubbed content.',releaseYear:2026,status:'ONGOING',genres:['Adventure','Fantasy']},
