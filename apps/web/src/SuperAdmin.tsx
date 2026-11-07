@@ -1,12 +1,34 @@
-import PartnerManagement from './PartnerManagement';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  Activity, BarChart3, CreditCard, Film, Globe, LayoutDashboard,
-  LogOut, RefreshCw, Settings, ShieldCheck, Users, Wallet,
-  AlertTriangle, CheckCircle, Menu, X, Search, UserCog,
-  Megaphone, Handshake, MessageSquare, Server, ExternalLink,
-  Database, Clock, Crown, Eye
+  Activity,
+  BarChart3,
+  CreditCard,
+  Film,
+  Globe,
+  LayoutDashboard,
+  LogOut,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Users,
+  Wallet,
+  AlertTriangle,
+  CheckCircle,
+  Menu,
+  X,
+  Search,
+  UserCog,
+  Megaphone,
+  Handshake,
+  MessageSquare,
+  Server,
+  ExternalLink,
+  Database,
+  Clock,
+  Crown
 } from 'lucide-react';
+
+import PartnerManagement from './PartnerManagement';
 
 const API = (
   import.meta.env.VITE_API_URL ||
@@ -16,6 +38,7 @@ const API = (
 type Section =
   | 'overview'
   | 'website'
+  | 'collaborations'
   | 'users'
   | 'payments'
   | 'revenue'
@@ -23,7 +46,6 @@ type Section =
   | 'staff'
   | 'operations'
   | 'system';
-  | 'collaborations'
 
 type User = {
   id: string;
@@ -71,15 +93,66 @@ const sections: {
   icon: typeof LayoutDashboard;
   group: string;
 }[] = [
-  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, group: 'MAIN' },
-  { id: 'website', label: 'Website CMS', icon: Globe, group: 'MANAGEMENT' },
-  { id: 'users', label: 'User Management', icon: Users, group: 'MANAGEMENT' },
-  { id: 'staff', label: 'Staff & Roles', icon: UserCog, group: 'MANAGEMENT' },
-  { id: 'payments', label: 'Payments', icon: CreditCard, group: 'FINANCE' },
-  { id: 'revenue', label: 'Revenue & Analytics', icon: Wallet, group: 'FINANCE' },
-  { id: 'content', label: 'Anime & Content', icon: Film, group: 'CONTENT' },
-  { id: 'operations', label: 'Platform Operations', icon: Activity, group: 'CONTENT' },
-  { id: 'system', label: 'System & Security', icon: ShieldCheck, group: 'SYSTEM' }
+  {
+    id: 'overview',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    group: 'MAIN'
+  },
+  {
+    id: 'website',
+    label: 'Website CMS',
+    icon: Globe,
+    group: 'MANAGEMENT'
+  },
+  {
+    id: 'collaborations',
+    label: 'Collaboration & Studios',
+    icon: Handshake,
+    group: 'MANAGEMENT'
+  },
+  {
+    id: 'users',
+    label: 'User Management',
+    icon: Users,
+    group: 'MANAGEMENT'
+  },
+  {
+    id: 'staff',
+    label: 'Staff & Roles',
+    icon: UserCog,
+    group: 'MANAGEMENT'
+  },
+  {
+    id: 'payments',
+    label: 'Payments',
+    icon: CreditCard,
+    group: 'FINANCE'
+  },
+  {
+    id: 'revenue',
+    label: 'Revenue & Analytics',
+    icon: Wallet,
+    group: 'FINANCE'
+  },
+  {
+    id: 'content',
+    label: 'Anime & Content',
+    icon: Film,
+    group: 'CONTENT'
+  },
+  {
+    id: 'operations',
+    label: 'Platform Operations',
+    icon: Activity,
+    group: 'CONTENT'
+  },
+  {
+    id: 'system',
+    label: 'System & Security',
+    icon: ShieldCheck,
+    group: 'SYSTEM'
+  }
 ];
 
 function formatMoney(value: unknown) {
@@ -100,7 +173,9 @@ function StatCard({
 }) {
   return (
     <article className="sa-stat">
-      <div className="sa-stat-icon"><Icon size={20} /></div>
+      <div className="sa-stat-icon">
+        <Icon size={20} />
+      </div>
       <span>{label}</span>
       <strong>{String(value ?? '—')}</strong>
       {description && <small>{description}</small>}
@@ -130,10 +205,12 @@ export default function SuperAdmin() {
   const [revenue, setRevenue] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [anime, setAnime] = useState<any[]>([]);
+
   const [settings, setSettings] =
     useState<SettingsData>(defaultSettings);
 
   const [health, setHealth] = useState<any>(null);
+
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
@@ -146,7 +223,9 @@ export default function SuperAdmin() {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token
+          ? { Authorization: `Bearer ${token}` }
+          : {}),
         ...options.headers
       }
     });
@@ -164,12 +243,15 @@ export default function SuperAdmin() {
 
   const logout = useCallback(() => {
     localStorage.removeItem('ahb_admin_token');
+
     setToken('');
     setUser(null);
     setSummary(null);
     setUsers([]);
     setPayments([]);
     setAnime([]);
+    setRevenue(null);
+    setAnalytics(null);
   }, []);
 
   const loadHealth = useCallback(async () => {
@@ -233,9 +315,11 @@ export default function SuperAdmin() {
       setError(
         'Dashboard data could not be loaded. Check API and database.'
       );
-    } else if (results.some(result => result.status === 'rejected')) {
+    } else if (
+      results.some(result => result.status === 'rejected')
+    ) {
       setMessage(
-        'Some dashboard modules could not load. Check the relevant section.'
+        'Some dashboard modules could not load.'
       );
     }
 
@@ -243,7 +327,10 @@ export default function SuperAdmin() {
   }, [api, loadHealth]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setUser(null);
+      return;
+    }
 
     let active = true;
 
@@ -252,20 +339,22 @@ export default function SuperAdmin() {
         if (!active) return;
 
         if (result.user?.role !== 'SUPER_ADMIN') {
+          logout();
           setError(
             'Access denied. Super Admin permission is required.'
           );
-          logout();
           return;
         }
 
         setUser(result.user);
       })
       .catch(() => {
-        if (active) {
-          logout();
-          setError('Your session expired. Please sign in again.');
-        }
+        if (!active) return;
+
+        logout();
+        setError(
+          'Your session expired. Please sign in again.'
+        );
       });
 
     return () => {
@@ -293,7 +382,10 @@ export default function SuperAdmin() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email: email.trim(), password })
+        body: JSON.stringify({
+          email: email.trim(),
+          password
+        })
       });
 
       const result = await response.json().catch(() => ({}));
@@ -302,13 +394,20 @@ export default function SuperAdmin() {
         throw new Error(result.error || 'Login failed.');
       }
 
-      if (!result.token || result.user?.role !== 'SUPER_ADMIN') {
+      if (
+        !result.token ||
+        result.user?.role !== 'SUPER_ADMIN'
+      ) {
         throw new Error(
           'This account is not an authorized Super Admin account.'
         );
       }
 
-      localStorage.setItem('ahb_admin_token', result.token);
+      localStorage.setItem(
+        'ahb_admin_token',
+        result.token
+      );
+
       localStorage.removeItem('ahb_token');
 
       setToken(result.token);
@@ -340,7 +439,9 @@ export default function SuperAdmin() {
       await loadDashboard();
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'Could not save settings.'
+        e instanceof Error
+          ? e.message
+          : 'Could not save settings.'
       );
     } finally {
       setLoading(false);
@@ -370,11 +471,16 @@ export default function SuperAdmin() {
         })
       });
 
-      setMessage(`Payment ${decision.toLowerCase()}d.`);
+      setMessage(
+        `Payment ${decision.toLowerCase()}d.`
+      );
+
       await loadDashboard();
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'Payment review failed.'
+        e instanceof Error
+          ? e.message
+          : 'Payment review failed.'
       );
     } finally {
       setLoading(false);
@@ -392,7 +498,8 @@ export default function SuperAdmin() {
         item.id.toLowerCase().includes(term);
 
       const matchesRole =
-        userFilter === 'ALL' || item.role === userFilter;
+        userFilter === 'ALL' ||
+        item.role === userFilter;
 
       return matchesSearch && matchesRole;
     });
@@ -420,15 +527,23 @@ export default function SuperAdmin() {
   );
 
   const staffUsers = users.filter(
-    item => item.role !== 'USER' && item.role !== 'SUPER_ADMIN'
+    item =>
+      item.role !== 'USER' &&
+      item.role !== 'SUPER_ADMIN'
   );
 
   if (!token || !user) {
     return (
       <div className="sa-login-page">
-        <form className="sa-login-card" onSubmit={login}>
+        <form
+          className="sa-login-card"
+          onSubmit={login}
+        >
           <div className="sa-logo">AH</div>
-          <div className="sa-eyebrow">ANIME HUB BANGLA</div>
+
+          <div className="sa-eyebrow">
+            ANIME HUB BANGLA
+          </div>
 
           <h1>Super Admin</h1>
 
@@ -437,6 +552,7 @@ export default function SuperAdmin() {
           </p>
 
           <label>Email address</label>
+
           <input
             type="email"
             required
@@ -446,6 +562,7 @@ export default function SuperAdmin() {
           />
 
           <label>Password</label>
+
           <input
             type="password"
             required
@@ -458,7 +575,10 @@ export default function SuperAdmin() {
             <div className="sa-error">{error}</div>
           )}
 
-          <button className="sa-primary" disabled={loading}>
+          <button
+            className="sa-primary"
+            disabled={loading}
+          >
             {loading ? 'Signing in...' : 'Secure Sign In'}
           </button>
 
@@ -478,7 +598,9 @@ export default function SuperAdmin() {
 
   return (
     <div className="sa-layout">
-      <aside className={`sa-sidebar ${menuOpen ? 'open' : ''}`}>
+      <aside
+        className={`sa-sidebar ${menuOpen ? 'open' : ''}`}
+      >
         <div className="sa-brand">
           <span className="sa-logo">AH</span>
 
@@ -495,14 +617,22 @@ export default function SuperAdmin() {
           </button>
         </div>
 
-        {['MAIN', 'MANAGEMENT', 'FINANCE', 'CONTENT', 'SYSTEM'].map(group => {
+        {[
+          'MAIN',
+          'MANAGEMENT',
+          'FINANCE',
+          'CONTENT',
+          'SYSTEM'
+        ].map(group => {
           const groupItems = sections.filter(
             item => item.group === group
           );
 
           return (
             <div key={group}>
-              <div className="sa-nav-label">{group}</div>
+              <div className="sa-nav-label">
+                {group}
+              </div>
 
               {groupItems.map(item => {
                 const Icon = item.icon;
@@ -535,13 +665,19 @@ export default function SuperAdmin() {
             <ShieldCheck />
 
             <div>
-              <b>{user.displayName || 'Super Admin'}</b>
+              <b>
+                {user.displayName || 'Super Admin'}
+              </b>
               <small>{user.email}</small>
             </div>
           </div>
 
-          <button className="sa-logout" onClick={logout}>
-            <LogOut size={17} /> Sign out
+          <button
+            className="sa-logout"
+            onClick={logout}
+          >
+            <LogOut size={17} />
+            Sign out
           </button>
         </div>
       </aside>
@@ -559,6 +695,7 @@ export default function SuperAdmin() {
             <span className="sa-eyebrow">
               PLATFORM CONTROL CENTER
             </span>
+
             <h1>{currentSection?.label}</h1>
           </div>
 
@@ -567,19 +704,22 @@ export default function SuperAdmin() {
             disabled={loading}
             onClick={loadDashboard}
           >
-            <RefreshCw size={16} /> Refresh
+            <RefreshCw size={16} />
+            Refresh
           </button>
         </header>
 
         {error && (
           <div className="sa-error sa-notice">
-            <AlertTriangle /> {error}
+            <AlertTriangle />
+            {error}
           </div>
         )}
 
         {message && (
           <div className="sa-success sa-notice">
-            <CheckCircle /> {message}
+            <CheckCircle />
+            {message}
           </div>
         )}
 
@@ -592,13 +732,17 @@ export default function SuperAdmin() {
                 <h2>
                   Welcome back, {user.displayName || 'Super Admin'}
                 </h2>
+
                 <p>
                   Manage Anime Hub Bangla from one central workspace.
                 </p>
               </div>
 
               <span className="sa-live">
-                <i /> {health?.online ? 'API Online' : 'API Status Unknown'}
+                <i />
+                {health?.online
+                  ? 'API Online'
+                  : 'API Status Unknown'}
               </span>
             </div>
 
@@ -630,7 +774,10 @@ export default function SuperAdmin() {
 
             <div className="sa-grid">
               <section className="sa-panel">
-                <h3><BarChart3 /> Platform Overview</h3>
+                <h3>
+                  <BarChart3 />
+                  Platform Overview
+                </h3>
 
                 <div className="sa-system-row">
                   <span>Anime catalogue</span>
@@ -659,16 +806,23 @@ export default function SuperAdmin() {
               </section>
 
               <section className="sa-panel">
-                <h3><Server /> Service Status</h3>
+                <h3>
+                  <Server />
+                  Service Status
+                </h3>
 
                 <div className="sa-system-row">
                   <span>API server</span>
-                  <b>{health?.online ? 'Online' : 'Unavailable'}</b>
+                  <b>
+                    {health?.online ? 'Online' : 'Unavailable'}
+                  </b>
                 </div>
 
                 <div className="sa-system-row">
                   <span>Database</span>
-                  <b>{String(health?.database || 'Not reported')}</b>
+                  <b>
+                    {String(health?.database || 'Not reported')}
+                  </b>
                 </div>
 
                 <div className="sa-system-row">
@@ -687,13 +841,17 @@ export default function SuperAdmin() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  View API health <ExternalLink size={14} />
+                  View API health
+                  <ExternalLink size={14} />
                 </a>
               </section>
             </div>
 
             <section className="sa-panel">
-              <h3><Clock /> Pending Payment Reviews</h3>
+              <h3>
+                <Clock />
+                Pending Payment Reviews
+              </h3>
 
               {pendingPayments.length ? (
                 <div className="sa-table-wrap">
@@ -741,15 +899,21 @@ export default function SuperAdmin() {
 
         {section === 'website' && (
           <section className="sa-panel">
-            <h2><Settings /> Website CMS & Settings</h2>
+            <h2>
+              <Settings />
+              Website CMS & Settings
+            </h2>
 
             <p>
-              Update the settings supported by the existing website
-              settings API.
+              Update the website settings supported by the existing API.
             </p>
 
-            <form className="sa-form" onSubmit={saveSettings}>
+            <form
+              className="sa-form"
+              onSubmit={saveSettings}
+            >
               <label>Website name</label>
+
               <input
                 value={settings.siteName}
                 onChange={e =>
@@ -761,6 +925,7 @@ export default function SuperAdmin() {
               />
 
               <label>Tagline</label>
+
               <input
                 value={settings.tagline}
                 onChange={e =>
@@ -772,6 +937,7 @@ export default function SuperAdmin() {
               />
 
               <label>Hero title</label>
+
               <input
                 value={settings.heroTitle}
                 onChange={e =>
@@ -783,6 +949,7 @@ export default function SuperAdmin() {
               />
 
               <label>Hero subtitle</label>
+
               <textarea
                 value={settings.heroSubtitle}
                 onChange={e =>
@@ -794,6 +961,7 @@ export default function SuperAdmin() {
               />
 
               <label>Announcement</label>
+
               <textarea
                 value={settings.announcement}
                 onChange={e =>
@@ -805,6 +973,7 @@ export default function SuperAdmin() {
               />
 
               <label>Contact email</label>
+
               <input
                 type="email"
                 value={settings.contactEmail}
@@ -830,38 +999,47 @@ export default function SuperAdmin() {
                 Enable maintenance mode
               </label>
 
-              <button className="sa-primary" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Website Settings'}
+              <button
+                className="sa-primary"
+                disabled={loading}
+              >
+                {loading
+                  ? 'Saving...'
+                  : 'Save Website Settings'}
               </button>
             </form>
 
             <p className="sa-muted">
-              The settings API stores these values. The public
-              homepage must read these settings to display changes.
+              The public homepage must read these settings
+              to display the saved changes.
             </p>
           </section>
         )}
-        
-        {/* COLLABORATION PARTNERS */}
 
-{section === 'collaborations' && (
-  <PartnerManagement token={token} />
-)}
+        {/* COLLABORATION & STUDIOS */}
+
+        {section === 'collaborations' && (
+          <PartnerManagement token={token} />
+        )}
 
         {/* USER MANAGEMENT */}
 
         {section === 'users' && (
           <section className="sa-panel">
-            <h2><Users /> User Management</h2>
+            <h2>
+              <Users />
+              User Management
+            </h2>
 
             <p>
-              Search registered accounts and review their current roles
-              and account statuses.
+              Search registered accounts and review their
+              current roles and account statuses.
             </p>
 
             <div className="sa-toolbar">
               <div className="sa-search">
                 <Search size={17} />
+
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -879,7 +1057,9 @@ export default function SuperAdmin() {
                 <option value="MODERATOR">Moderators</option>
                 <option value="CONTENT_MANAGER">Content Managers</option>
                 <option value="ADVERTISEMENT_MANAGER">Ad Managers</option>
-                <option value="COLLABORATION_MANAGER">Collaboration Managers</option>
+                <option value="COLLABORATION_MANAGER">
+                  Collaboration Managers
+                </option>
                 <option value="ANALYST">Analysts</option>
                 <option value="SUPER_ADMIN">Super Admins</option>
               </select>
@@ -916,9 +1096,9 @@ export default function SuperAdmin() {
             </div>
 
             <p className="sa-muted">
-              User role and suspension changes require a protected
-              backend permission-management endpoint. This view does
-              not pretend to change account permissions.
+              This is a read-only user overview.
+              Protected role and suspension management
+              requires dedicated backend endpoints.
             </p>
           </section>
         )}
@@ -927,11 +1107,13 @@ export default function SuperAdmin() {
 
         {section === 'staff' && (
           <section className="sa-panel">
-            <h2><UserCog /> Staff & Role Overview</h2>
+            <h2>
+              <UserCog />
+              Staff & Role Overview
+            </h2>
 
             <p>
               Review staff accounts and their assigned roles.
-              Super Admin accounts are excluded from staff totals.
             </p>
 
             <div className="sa-stats">
@@ -943,19 +1125,25 @@ export default function SuperAdmin() {
 
               <StatCard
                 label="Admins"
-                value={staffUsers.filter(x => x.role === 'ADMIN').length}
+                value={staffUsers.filter(
+                  x => x.role === 'ADMIN'
+                ).length}
                 icon={ShieldCheck}
               />
 
               <StatCard
                 label="Moderators"
-                value={staffUsers.filter(x => x.role === 'MODERATOR').length}
+                value={staffUsers.filter(
+                  x => x.role === 'MODERATOR'
+                ).length}
                 icon={MessageSquare}
               />
 
               <StatCard
                 label="Content Managers"
-                value={staffUsers.filter(x => x.role === 'CONTENT_MANAGER').length}
+                value={staffUsers.filter(
+                  x => x.role === 'CONTENT_MANAGER'
+                ).length}
                 icon={Film}
               />
             </div>
@@ -992,12 +1180,6 @@ export default function SuperAdmin() {
               Open Admin Panel for staff operations
               <ExternalLink size={14} />
             </a>
-
-            <p className="sa-muted">
-              Role changes and staff creation must be handled through
-              server-authorized endpoints. The Super Admin interface
-              will not expose an unverified permission action.
-            </p>
           </section>
         )}
 
@@ -1005,16 +1187,20 @@ export default function SuperAdmin() {
 
         {section === 'payments' && (
           <section className="sa-panel">
-            <h2><CreditCard /> Payment Management</h2>
+            <h2>
+              <CreditCard />
+              Payment Management
+            </h2>
 
             <p>
-              Verify transactions in the relevant merchant account
-              before approving a payment.
+              Verify transactions in the relevant merchant
+              account before approving a payment.
             </p>
 
             <div className="sa-toolbar">
               <div className="sa-search">
                 <Search size={17} />
+
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -1048,13 +1234,17 @@ export default function SuperAdmin() {
 
               <StatCard
                 label="Approved"
-                value={payments.filter(x => x.status === 'APPROVED').length}
+                value={payments.filter(
+                  x => x.status === 'APPROVED'
+                ).length}
                 icon={CheckCircle}
               />
 
               <StatCard
                 label="Rejected"
-                value={payments.filter(x => x.status === 'REJECTED').length}
+                value={payments.filter(
+                  x => x.status === 'REJECTED'
+                ).length}
                 icon={AlertTriangle}
               />
             </div>
@@ -1088,7 +1278,10 @@ export default function SuperAdmin() {
                             <button
                               disabled={loading}
                               onClick={() =>
-                                reviewPayment(payment.id, 'APPROVE')
+                                reviewPayment(
+                                  payment.id,
+                                  'APPROVE'
+                                )
                               }
                             >
                               Approve
@@ -1097,7 +1290,10 @@ export default function SuperAdmin() {
                             <button
                               disabled={loading}
                               onClick={() =>
-                                reviewPayment(payment.id, 'REJECT')
+                                reviewPayment(
+                                  payment.id,
+                                  'REJECT'
+                                )
                               }
                             >
                               Reject
@@ -1119,63 +1315,28 @@ export default function SuperAdmin() {
           </section>
         )}
 
-        {/* REVENUE */}
-
-        {section === 'revenue' && (
-          <div className="sa-grid">
-            <section className="sa-panel">
-              <h2><Wallet /> Revenue Summary</h2>
-
-              {revenue ? (
-                <pre>{JSON.stringify(revenue, null, 2)}</pre>
-              ) : (
-                <p>Revenue data unavailable.</p>
-              )}
-
-              <p className="sa-muted">
-                Payment requests, pending transactions, advertising
-                estimates and actual received revenue are different
-                figures. Only verified financial records should be
-                treated as received revenue.
-              </p>
-            </section>
-
-            <section className="sa-panel">
-              <h2><BarChart3 /> Platform Analytics</h2>
-
-              {analytics ? (
-                <pre>{JSON.stringify(analytics, null, 2)}</pre>
-              ) : (
-                <p>Analytics unavailable.</p>
-              )}
-
-              <p className="sa-muted">
-                Playback analytics depend on the events collected
-                by the backend. They should not be treated as audited
-                unique viewers unless deduplication is implemented.
-              </p>
-            </section>
-          </div>
-        )}
-
-        
-        {/* REVENUE */}
+        {/* REVENUE & ANALYTICS */}
 
         {section === 'revenue' && (
           <div className="sa-analytics">
             <section className="sa-panel">
               <div className="sa-analytics-heading">
                 <div>
-                  <h2><Wallet /> Revenue Summary</h2>
+                  <h2>
+                    <Wallet />
+                    Revenue Summary
+                  </h2>
+
                   <p className="sa-muted">
                     Financial records from the platform API.
                   </p>
                 </div>
-                <span className="sa-live">Live API data</span>
               </div>
 
               {revenue ? (
-                <pre>{JSON.stringify(revenue, null, 2)}</pre>
+                <pre>
+                  {JSON.stringify(revenue, null, 2)}
+                </pre>
               ) : (
                 <p>Revenue data unavailable.</p>
               )}
@@ -1189,12 +1350,16 @@ export default function SuperAdmin() {
             <section className="sa-panel">
               <div className="sa-analytics-heading">
                 <div>
-                  <h2><BarChart3 /> Playback Analytics</h2>
+                  <h2>
+                    <BarChart3 />
+                    Playback Analytics
+                  </h2>
+
                   <p className="sa-muted">
-                    Activity collected during the last {analytics?.period || '30 days'}.
+                    Activity collected during the last{' '}
+                    {analytics?.period || '30 days'}.
                   </p>
                 </div>
-                <span className="sa-live">Last 30 days</span>
               </div>
 
               {analytics ? (
@@ -1203,60 +1368,92 @@ export default function SuperAdmin() {
                     <StatCard
                       label="Total Plays"
                       value={analytics.totals?.plays ?? 0}
-                      icon={Activity}}
+                      icon={Activity}
                     />
+
                     <StatCard
                       label="Completions"
                       value={analytics.totals?.completions ?? 0}
                       icon={CheckCircle}
                     />
+
                     <StatCard
                       label="Active Viewers"
                       value={analytics.totals?.active_viewers ?? 0}
                       icon={Users}
                     />
+
                     <StatCard
                       label="Watch Time"
-                      value={`${Math.round(Number(analytics.daily?.reduce(
-                        (sum: number, item: any) =>
-                          sum + Number(item.watched_seconds || 0), 0
-                      ) || 0) / 3600)} hrs`}
+                      value={`${Math.round(
+                        Number(
+                          analytics.daily?.reduce(
+                            (sum: number, item: any) =>
+                              sum + Number(
+                                item.watched_seconds || 0
+                              ),
+                            0
+                          ) || 0
+                        ) / 3600
+                      )} hrs`}
                       icon={Clock}
                     />
                   </div>
 
                   <div className="sa-grid">
                     <div className="sa-panel">
-                      <h3><Activity /> Daily Playback Activity</h3>
+                      <h3>
+                        <Activity />
+                        Daily Playback Activity
+                      </h3>
 
                       {analytics.daily?.length ? (
                         <div className="sa-activity-list">
-                          {analytics.daily.slice(-14).map((item: any) => {
-                            const maxPlays = Math.max(
-                              1,
-                              ...analytics.daily.map((day: any) =>
-                                Number(day.plays || 0)
-                              )
-                            );
+                          {analytics.daily.slice(-14).map(
+                            (item: any) => {
+                              const maxPlays = Math.max(
+                                1,
+                                ...analytics.daily.map(
+                                  (day: any) =>
+                                    Number(day.plays || 0)
+                                )
+                              );
 
-                            const percentage =
-                              Number(item.plays || 0) / maxPlays * 100;
+                              const percentage =
+                                Number(item.plays || 0) /
+                                maxPlays * 100;
 
-                            return (
-                              <div className="sa-activity-row" key={String(item.day)}>
-                                <div>
-                                  <span>{String(item.day).slice(0, 10)}</span>
-                                  <b>{Number(item.plays || 0)} plays</b>
+                              return (
+                                <div
+                                  className="sa-activity-row"
+                                  key={String(item.day)}
+                                >
+                                  <div>
+                                    <span>
+                                      {String(item.day).slice(0, 10)}
+                                    </span>
+
+                                    <b>
+                                      {Number(item.plays || 0)} plays
+                                    </b>
+                                  </div>
+
+                                  <div className="sa-activity-track">
+                                    <i
+                                      style={{
+                                        width: `${percentage}%`
+                                      }}
+                                    />
+                                  </div>
+
+                                  <small>
+                                    {Number(item.completions || 0)}
+                                    {' '}completed
+                                  </small>
                                 </div>
-                                <div className="sa-activity-track">
-                                  <i style={{ width: `${percentage}%` }} />
-                                </div>
-                                <small>
-                                  {Number(item.completions || 0)} completed
-                                </small>
-                              </div>
-                            );
-                          })}
+                              );
+                            }
+                          )}
                         </div>
                       ) : (
                         <p>No playback activity recorded yet.</p>
@@ -1264,19 +1461,30 @@ export default function SuperAdmin() {
                     </div>
 
                     <div className="sa-panel">
-                      <h3><Film /> Top Anime</h3>
+                      <h3>
+                        <Film />
+                        Top Anime
+                      </h3>
 
                       {analytics.topAnime?.length ? (
                         <div className="sa-ranking-list">
-                          {analytics.topAnime.map((item: any, index: number) => (
-                            <div className="sa-ranking-row" key={`${item.title}-${index}`}>
-                              <span>{index + 1}</span>
-                              <b>{item.title}</b>
-                              <strong>
-                                {Number(item.plays || 0).toLocaleString()}
-                              </strong>
-                            </div>
-                          ))}
+                          {analytics.topAnime.map(
+                            (item: any, index: number) => (
+                              <div
+                                className="sa-ranking-row"
+                                key={`${item.title}-${index}`}
+                              >
+                                <span>{index + 1}</span>
+                                <b>{item.title}</b>
+
+                                <strong>
+                                  {Number(
+                                    item.plays || 0
+                                  ).toLocaleString()}
+                                </strong>
+                              </div>
+                            )
+                          )}
                         </div>
                       ) : (
                         <p>No ranking data available yet.</p>
@@ -1285,110 +1493,164 @@ export default function SuperAdmin() {
                   </div>
                 </>
               ) : (
-                <p>Analytics data unavailable. Check the API connection.</p>
+                <p>
+                  Analytics data unavailable. Check the API connection.
+                </p>
               )}
 
               <p className="sa-muted">
                 These figures represent recorded playback events.
-                They are not the same as website visits or verified unique visitors.
+                They are not the same as website visits or verified
+                unique visitors.
               </p>
             </section>
           </div>
         )}
 
+        {/* ANIME & CONTENT */}
+
+        {section === 'content' && (
+          <section className="sa-panel">
+            <h2>
+              <Film />
+              Anime & Content Management
+            </h2>
+
+            <p>
+              Manage anime, episodes and video operations
+              through the existing Admin Panel.
+            </p>
+
+            <a className="sa-link" href="/admin">
+              Open Content Management
+              <ExternalLink size={14} />
+            </a>
+
+            <div className="sa-system-row">
+              <span>Anime loaded from API</span>
+              <b>{anime.length}</b>
+            </div>
+          </section>
+        )}
 
         {/* OPERATIONS */}
 
         {section === 'operations' && (
-          <>
-            <section className="sa-panel">
-              <h2><Activity /> Platform Operations</h2>
+          <section className="sa-panel">
+            <h2>
+              <Activity />
+              Platform Operations
+            </h2>
 
-              <p>
-                Open the existing Admin Panel modules for operational
-                tasks. These links do not create fake integrations.
-              </p>
+            <p>
+              Open the existing Admin Panel modules for
+              operational tasks.
+            </p>
 
-              <div className="sa-operations-grid">
-                <a className="sa-operation-card" href="/admin">
-                  <Megaphone />
-                  <b>Advertisement Management</b>
-                  <small>Ad campaigns, placements and reports</small>
-                  <span>Open Admin Panel →</span>
-                </a>
+            <div className="sa-operations-grid">
+              <a className="sa-operation-card" href="/admin">
+                <Megaphone />
+                <b>Advertisement Management</b>
+                <small>Ad campaigns, placements and reports</small>
+                <span>Open Admin Panel →</span>
+              </a>
 
-                <a className="sa-operation-card" href="/admin">
-                  <Handshake />
-                  <b>Sponsors & Partnerships</b>
-                  <small>Manage sponsor and collaboration workflows</small>
-                  <span>Open Admin Panel →</span>
-                </a>
+              <a className="sa-operation-card" href="/admin">
+                <Handshake />
+                <b>Sponsors & Partnerships</b>
+                <small>Sponsor and partnership operations</small>
+                <span>Open Admin Panel →</span>
+              </a>
 
-                <a className="sa-operation-card" href="/admin">
-                  <MessageSquare />
-                  <b>Community Moderation</b>
-                  <small>Review community content and reports</small>
-                  <span>Open Admin Panel →</span>
-                </a>
+              <a className="sa-operation-card" href="/admin">
+                <MessageSquare />
+                <b>Community Moderation</b>
+                <small>Review community content and reports</small>
+                <span>Open Admin Panel →</span>
+              </a>
 
-                <a className="sa-operation-card" href="/admin">
-                  <Film />
-                  <b>Content Operations</b>
-                  <small>Anime catalogue and episode management</small>
-                  <span>Open Admin Panel →</span>
-                </a>
+              <a className="sa-operation-card" href="/admin">
+                <Film />
+                <b>Content Operations</b>
+                <small>Anime catalogue and episode management</small>
+                <span>Open Admin Panel →</span>
+              </a>
 
-                <a className="sa-operation-card" href="/admin">
-                  <Users />
-                  <b>Staff Workspace</b>
-                  <small>Open the staff administration tools</small>
-                  <span>Open Admin Panel →</span>
-                </a>
+              <a className="sa-operation-card" href="/admin">
+                <Users />
+                <b>Staff Workspace</b>
+                <small>Open staff administration tools</small>
+                <span>Open Admin Panel →</span>
+              </a>
 
-                <a className="sa-operation-card" href="/admin">
-                  <CreditCard />
-                  <b>Payment Operations</b>
-                  <small>Review and manage payment submissions</small>
-                  <span>Open Admin Panel →</span>
-                </a>
-              </div>
-            </section>
-          </>
+              <a className="sa-operation-card" href="/admin">
+                <CreditCard />
+                <b>Payment Operations</b>
+                <small>Review payment submissions</small>
+                <span>Open Admin Panel →</span>
+              </a>
+            </div>
+          </section>
         )}
 
-        {/* SYSTEM */}
+        {/* SYSTEM & SECURITY */}
 
         {section === 'system' && (
           <section className="sa-panel">
-            <h2><ShieldCheck /> System & Security</h2>
+            <h2>
+              <ShieldCheck />
+              System & Security
+            </h2>
 
             <div className="sa-system-row">
-              <span><Server size={17} /> API endpoint</span>
+              <span>
+                <Server size={17} />
+                API endpoint
+              </span>
               <b>{API}</b>
             </div>
 
             <div className="sa-system-row">
-              <span><Activity size={17} /> API server</span>
-              <b>{health?.online ? 'Online' : 'Unavailable'}</b>
+              <span>
+                <Activity size={17} />
+                API server
+              </span>
+              <b>
+                {health?.online ? 'Online' : 'Unavailable'}
+              </b>
             </div>
 
             <div className="sa-system-row">
-              <span><Database size={17} /> Database</span>
-              <b>{String(health?.database || 'Not reported')}</b>
+              <span>
+                <Database size={17} />
+                Database
+              </span>
+              <b>
+                {String(health?.database || 'Not reported')}
+              </b>
             </div>
 
             <div className="sa-system-row">
-              <span><ShieldCheck size={17} /> Current account role</span>
+              <span>
+                <ShieldCheck size={17} />
+                Current account role
+              </span>
               <b>{user.role}</b>
             </div>
 
             <div className="sa-system-row">
-              <span><Crown size={17} /> Access level</span>
+              <span>
+                <Crown size={17} />
+                Access level
+              </span>
               <b>Super Admin</b>
             </div>
 
             <div className="sa-system-row">
-              <span><Settings size={17} /> Website settings API</span>
+              <span>
+                <Settings size={17} />
+                Website settings API
+              </span>
               <b>Available when API responds</b>
             </div>
 
@@ -1406,14 +1668,14 @@ export default function SuperAdmin() {
               className="sa-primary"
               onClick={loadHealth}
             >
-              <RefreshCw size={16} /> Check services again
+              <RefreshCw size={16} />
+              Check services again
             </button>
 
             <p className="sa-muted">
               Backup automation, multi-factor authentication,
               provider integrations and advanced audit monitoring
-              must be configured on the backend before they can
-              be reported as enabled.
+              must be configured before they can be reported as enabled.
             </p>
           </section>
         )}
