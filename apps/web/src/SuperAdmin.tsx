@@ -1151,77 +1151,144 @@ export default function SuperAdmin() {
           </div>
         )}
 
-        {/* CONTENT */}
+        
+        {/* REVENUE */}
 
-        {section === 'content' && (
-          <section className="sa-panel">
-            <h2><Film /> Anime & Content Management</h2>
+        {section === 'revenue' && (
+          <div className="sa-analytics">
+            <section className="sa-panel">
+              <div className="sa-analytics-heading">
+                <div>
+                  <h2><Wallet /> Revenue Summary</h2>
+                  <p className="sa-muted">
+                    Financial records from the platform API.
+                  </p>
+                </div>
+                <span className="sa-live">Live API data</span>
+              </div>
 
-            <p>
-              Overview of anime catalogue records available through
-              the existing Admin API.
-            </p>
-
-            <div className="sa-stats">
-              <StatCard
-                label="Anime Records"
-                value={anime.length}
-                icon={Film}
-              />
-
-              <StatCard
-                label="Total Episodes"
-                value={summary?.episodes}
-                icon={Activity}
-              />
-
-              <StatCard
-                label="Total Views"
-                value={summary?.views}
-                icon={Eye}
-              />
-
-              <StatCard
-                label="Registered Users"
-                value={summary?.users}
-                icon={Users}
-              />
-            </div>
-
-            <div className="sa-table-wrap">
-              <table className="sa-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Slug</th>
-                    <th>Status</th>
-                    <th>Published</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {anime.map(item => (
-                    <tr key={item.id}>
-                      <td>{item.title}</td>
-                      <td>{item.slug}</td>
-                      <td>{item.status}</td>
-                      <td>{item.published ? 'Yes' : 'No'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {!anime.length && (
-                <p>No anime records loaded.</p>
+              {revenue ? (
+                <pre>{JSON.stringify(revenue, null, 2)}</pre>
+              ) : (
+                <p>Revenue data unavailable.</p>
               )}
-            </div>
 
-            <a className="sa-link" href="/admin">
-              Open full Anime & Episode Manager
-              <ExternalLink size={14} />
-            </a>
-          </section>
+              <p className="sa-muted">
+                Pending payments are not confirmed revenue.
+                Only verified financial records count as received income.
+              </p>
+            </section>
+
+            <section className="sa-panel">
+              <div className="sa-analytics-heading">
+                <div>
+                  <h2><BarChart3 /> Playback Analytics</h2>
+                  <p className="sa-muted">
+                    Activity collected during the last {analytics?.period || '30 days'}.
+                  </p>
+                </div>
+                <span className="sa-live">Last 30 days</span>
+              </div>
+
+              {analytics ? (
+                <>
+                  <div className="sa-stats">
+                    <StatCard
+                      label="Total Plays"
+                      value={analytics.totals?.plays ?? 0}
+                      icon={PlayIconPlaceholder}
+                    />
+                    <StatCard
+                      label="Completions"
+                      value={analytics.totals?.completions ?? 0}
+                      icon={CheckCircle}
+                    />
+                    <StatCard
+                      label="Active Viewers"
+                      value={analytics.totals?.active_viewers ?? 0}
+                      icon={Users}
+                    />
+                    <StatCard
+                      label="Watch Time"
+                      value={`${Math.round(Number(analytics.daily?.reduce(
+                        (sum: number, item: any) =>
+                          sum + Number(item.watched_seconds || 0), 0
+                      ) || 0) / 3600)} hrs`}
+                      icon={Clock}
+                    />
+                  </div>
+
+                  <div className="sa-grid">
+                    <div className="sa-panel">
+                      <h3><Activity /> Daily Playback Activity</h3>
+
+                      {analytics.daily?.length ? (
+                        <div className="sa-activity-list">
+                          {analytics.daily.slice(-14).map((item: any) => {
+                            const maxPlays = Math.max(
+                              1,
+                              ...analytics.daily.map((day: any) =>
+                                Number(day.plays || 0)
+                              )
+                            );
+
+                            const percentage =
+                              Number(item.plays || 0) / maxPlays * 100;
+
+                            return (
+                              <div className="sa-activity-row" key={String(item.day)}>
+                                <div>
+                                  <span>{String(item.day).slice(0, 10)}</span>
+                                  <b>{Number(item.plays || 0)} plays</b>
+                                </div>
+                                <div className="sa-activity-track">
+                                  <i style={{ width: `${percentage}%` }} />
+                                </div>
+                                <small>
+                                  {Number(item.completions || 0)} completed
+                                </small>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p>No playback activity recorded yet.</p>
+                      )}
+                    </div>
+
+                    <div className="sa-panel">
+                      <h3><Film /> Top Anime</h3>
+
+                      {analytics.topAnime?.length ? (
+                        <div className="sa-ranking-list">
+                          {analytics.topAnime.map((item: any, index: number) => (
+                            <div className="sa-ranking-row" key={`${item.title}-${index}`}>
+                              <span>{index + 1}</span>
+                              <b>{item.title}</b>
+                              <strong>
+                                {Number(item.plays || 0).toLocaleString()}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p>No ranking data available yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p>Analytics data unavailable. Check the API connection.</p>
+              )}
+
+              <p className="sa-muted">
+                These figures represent recorded playback events.
+                They are not the same as website visits or verified unique visitors.
+              </p>
+            </section>
+          </div>
         )}
+
 
         {/* OPERATIONS */}
 
