@@ -1,53 +1,23 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
-  Activity,
-  BarChart3,
-  CreditCard,
-  Film,
-  Globe,
-  LayoutDashboard,
-  LogOut,
-  RefreshCw,
-  Settings,
-  ShieldCheck,
-  Users,
-  Wallet,
-  AlertTriangle,
-  CheckCircle,
-  Menu,
-  X,
-  Search,
-  UserCog,
-  Megaphone,
-  Handshake,
-  MessageSquare,
-  Server,
-  ExternalLink,
-  Database,
-  Clock,
-  Crown
+  Activity, BarChart3, Bell, CheckCircle, ChevronRight, Clock,
+  CreditCard, Database, ExternalLink, Film, Globe, Handshake,
+  LayoutDashboard, Lock, LogOut, Menu, Monitor, RefreshCw,
+  Search, Server, Settings, Shield, ShieldCheck, Users, Wallet,
+  X, Crown, Layers, Megaphone, MessageSquare, UserCog, Plug,
+  HardDrive, Eye, Palette, FileText, AlertTriangle
 } from 'lucide-react';
 
-import PartnerManagement from './PartnerManagement';
 import Admin from './Admin';
+import PartnerManagement from './PartnerManagement';
+
 const API = (
   import.meta.env.VITE_API_URL ||
   'https://anime-hub-bangla.onrender.com'
 ).replace(/\/$/, '');
 
-type Section =
-  | 'overview'
-  | 'website'
-  | 'collaborations'
-  | 'users'
-  | 'payments'
-  | 'revenue'
-  | 'content'
-  | 'staff'
-  | 'operations'
-  | 'system';
-
-type User = {
+type RoleUser = {
   id: string;
   email: string;
   displayName?: string;
@@ -58,13 +28,20 @@ type User = {
 type Payment = {
   id: string;
   email: string;
-  displayName: string;
+  displayName?: string;
   plan: string;
   paymentMethod: string;
   transactionReference: string;
-  amountBdt: string | number;
+  amountBdt: number | string;
   status: string;
   createdAt: string;
+};
+
+type Anime = {
+  id: string;
+  title: string;
+  slug: string;
+  published: boolean;
 };
 
 type SettingsData = {
@@ -87,99 +64,144 @@ const defaultSettings: SettingsData = {
   maintenanceMode: false
 };
 
-const sections: {
+type Section =
+  | 'overview'
+  | 'website'
+  | 'collaborations'
+  | 'users'
+  | 'payments'
+  | 'revenue'
+  | 'content'
+  | 'operations'
+  | 'staff'
+  | 'system'
+  | 'future';
+
+const nav: {
   id: Section;
   label: string;
-  icon: typeof LayoutDashboard;
   group: string;
+  icon: typeof LayoutDashboard;
 }[] = [
-  {
-    id: 'overview',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    group: 'MAIN'
-  },
-  {
-    id: 'website',
-    label: 'Website CMS',
-    icon: Globe,
-    group: 'MANAGEMENT'
-  },
-  {
-    id: 'collaborations',
-    label: 'Collaboration & Studios',
-    icon: Handshake,
-    group: 'MANAGEMENT'
-  },
-  {
-    id: 'users',
-    label: 'User Management',
-    icon: Users,
-    group: 'MANAGEMENT'
-  },
-  {
-    id: 'staff',
-    label: 'Staff & Roles',
-    icon: UserCog,
-    group: 'MANAGEMENT'
-  },
-  {
-    id: 'payments',
-    label: 'Payments',
-    icon: CreditCard,
-    group: 'FINANCE'
-  },
-  {
-    id: 'revenue',
-    label: 'Revenue & Analytics',
-    icon: Wallet,
-    group: 'FINANCE'
-  },
-  {
-    id: 'content',
-    label: 'Anime & Content',
-    icon: Film,
-    group: 'CONTENT'
-  },
-  {
-    id: 'operations',
-    label: 'Platform Operations',
-    icon: Activity,
-    group: 'CONTENT'
-  },
-  {
-    id: 'system',
-    label: 'System & Security',
-    icon: ShieldCheck,
-    group: 'SYSTEM'
-  }
+  { id: 'overview', label: 'Dashboard Overview', group: 'MAIN', icon: LayoutDashboard },
+  { id: 'website', label: 'Website CMS', group: 'WEBSITE', icon: Globe },
+  { id: 'collaborations', label: 'Collaboration Partners', group: 'WEBSITE', icon: Handshake },
+  { id: 'content', label: 'Anime & Episodes', group: 'CONTENT', icon: Film },
+  { id: 'operations', label: 'Platform Operations', group: 'CONTENT', icon: Layers },
+  { id: 'users', label: 'User Management', group: 'MANAGEMENT', icon: Users },
+  { id: 'staff', label: 'Staff & Permissions', group: 'MANAGEMENT', icon: UserCog },
+  { id: 'payments', label: 'Payments', group: 'FINANCE', icon: CreditCard },
+  { id: 'revenue', label: 'Revenue & Analytics', group: 'FINANCE', icon: Wallet },
+  { id: 'system', label: 'System & Security', group: 'SYSTEM', icon: ShieldCheck },
+  { id: 'future', label: 'Future Integrations', group: 'SYSTEM', icon: Plug }
 ];
 
-function formatMoney(value: unknown) {
-  const amount = Number(value || 0);
-  return `৳${amount.toLocaleString('en-BD')}`;
+const groups = ['MAIN', 'WEBSITE', 'CONTENT', 'MANAGEMENT', 'FINANCE', 'SYSTEM'];
+
+const panelStyle: React.CSSProperties = {
+  background: '#111116',
+  border: '1px solid #292933',
+  borderRadius: 16,
+  padding: 22,
+  minWidth: 0
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#09090d',
+  color: '#f5f5f5',
+  border: '1px solid #34343e',
+  borderRadius: 9,
+  padding: '12px 13px',
+  outline: 'none',
+  marginTop: 7
+};
+
+const buttonStyle: React.CSSProperties = {
+  background: '#d4af37',
+  color: '#17130a',
+  border: 0,
+  borderRadius: 9,
+  padding: '11px 16px',
+  fontWeight: 800,
+  cursor: 'pointer'
+};
+
+function money(value: unknown) {
+  return `৳${Number(value || 0).toLocaleString('en-BD')}`;
 }
 
-function StatCard({
-  label,
+function Card({
+  title,
   value,
   icon: Icon,
-  description
+  detail
 }: {
-  label: string;
-  value: unknown;
+  title: string;
+  value: ReactNode;
   icon: typeof Users;
-  description?: string;
+  detail?: string;
 }) {
   return (
-    <article className="sa-stat">
-      <div className="sa-stat-icon">
-        <Icon size={20} />
+    <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#aaa', fontSize: 13 }}>{title}</span>
+        <Icon size={20} color="#d4af37" />
       </div>
-      <span>{label}</span>
-      <strong>{String(value ?? '—')}</strong>
-      {description && <small>{description}</small>}
-    </article>
+      <strong style={{ fontSize: 28, color: '#fff' }}>{value}</strong>
+      {detail && <small style={{ color: '#888' }}>{detail}</small>}
+    </div>
+  );
+}
+
+function SectionTitle({
+  title,
+  description,
+  action
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 14,
+      flexWrap: 'wrap',
+      marginBottom: 20
+    }}>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 23 }}>{title}</h2>
+        {description && (
+          <p style={{ color: '#999', margin: '7px 0 0', lineHeight: 1.6 }}>
+            {description}
+          </p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Status({ value }: { value: string }) {
+  const good = ['ACTIVE', 'APPROVED', 'ONLINE', 'PUBLISHED'].includes(
+    String(value).toUpperCase()
+  );
+
+  return (
+    <span style={{
+      display: 'inline-block',
+      borderRadius: 30,
+      padding: '5px 9px',
+      fontSize: 11,
+      fontWeight: 800,
+      background: good ? '#123324' : '#332719',
+      color: good ? '#70e0a0' : '#e9c27b'
+    }}>
+      {value || 'UNKNOWN'}
+    </span>
   );
 }
 
@@ -188,31 +210,29 @@ export default function SuperAdmin() {
     localStorage.getItem('ahb_admin_token') || ''
   );
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<RoleUser | null>(null);
   const [section, setSection] = useState<Section>('overview');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const [summary, setSummary] = useState<any>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<RoleUser[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [anime, setAnime] = useState<Anime[]>([]);
   const [revenue, setRevenue] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
-  const [anime, setAnime] = useState<any[]>([]);
+  const [health, setHealth] = useState<any>(null);
 
   const [settings, setSettings] =
     useState<SettingsData>(defaultSettings);
 
-  const [health, setHealth] = useState<any>(null);
-
   const [search, setSearch] = useState('');
-  const [userFilter, setUserFilter] = useState('ALL');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
 
   const api = useCallback(async (
@@ -222,10 +242,10 @@ export default function SuperAdmin() {
     const response = await fetch(`${API}${path}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
-        ...(token
-          ? { Authorization: `Bearer ${token}` }
+        ...(options.body && !(options.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
           : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers
       }
     });
@@ -233,45 +253,24 @@ export default function SuperAdmin() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(
-        data.error || `Request failed (${response.status})`
-      );
+      throw new Error(data.error || `Request failed (${response.status})`);
     }
 
     return data;
   }, [token]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('ahb_admin_token');
-
-    setToken('');
-    setUser(null);
-    setSummary(null);
-    setUsers([]);
-    setPayments([]);
-    setAnime([]);
-    setRevenue(null);
-    setAnalytics(null);
-  }, []);
-
   const loadHealth = useCallback(async () => {
     try {
       const response = await fetch(`${API}/api/health`);
       const data = await response.json().catch(() => ({}));
-
-      setHealth({
-        online: response.ok,
-        ...data
-      });
+      setHealth({ online: response.ok, ...data });
     } catch {
-      setHealth({
-        online: false,
-        database: 'unreachable'
-      });
+      setHealth({ online: false, database: 'unreachable' });
     }
   }, []);
 
   const loadDashboard = useCallback(async () => {
+    setLoading(true);
     setError('');
 
     const results = await Promise.allSettled([
@@ -284,18 +283,18 @@ export default function SuperAdmin() {
       api('/api/admin/settings')
     ]);
 
-    const get = (index: number) =>
+    const value = (index: number) =>
       results[index].status === 'fulfilled'
         ? results[index].value
         : null;
 
-    const summaryData = get(0);
-    const userData = get(1);
-    const paymentData = get(2);
-    const revenueData = get(3);
-    const analyticsData = get(4);
-    const animeData = get(5);
-    const settingsData = get(6);
+    const summaryData = value(0);
+    const userData = value(1);
+    const paymentData = value(2);
+    const revenueData = value(3);
+    const analyticsData = value(4);
+    const animeData = value(5);
+    const settingsData = value(6);
 
     if (summaryData) setSummary(summaryData);
     if (userData) setUsers(userData.data || []);
@@ -311,20 +310,32 @@ export default function SuperAdmin() {
       });
     }
 
-    if (results.every(result => result.status === 'rejected')) {
-      setError(
-        'Dashboard data could not be loaded. Check API and database.'
-      );
-    } else if (
-      results.some(result => result.status === 'rejected')
-    ) {
-      setMessage(
-        'Some dashboard modules could not load.'
-      );
+    const failed = results.filter(x => x.status === 'rejected').length;
+
+    if (failed === results.length) {
+      setError('Dashboard data could not be loaded. Check API and database.');
+    } else if (failed > 0) {
+      setMessage(`${failed} dashboard module(s) are currently unavailable.`);
+    } else {
+      setMessage('');
     }
 
     await loadHealth();
+    setLoading(false);
   }, [api, loadHealth]);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('ahb_admin_token');
+    setToken('');
+    setUser(null);
+    setSummary(null);
+    setUsers([]);
+    setPayments([]);
+    setAnime([]);
+    setRevenue(null);
+    setAnalytics(null);
+    setSection('overview');
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -340,9 +351,7 @@ export default function SuperAdmin() {
 
         if (result.user?.role !== 'SUPER_ADMIN') {
           logout();
-          setError(
-            'Access denied. Super Admin permission is required.'
-          );
+          setError('Access denied. Super Admin permission is required.');
           return;
         }
 
@@ -350,11 +359,8 @@ export default function SuperAdmin() {
       })
       .catch(() => {
         if (!active) return;
-
         logout();
-        setError(
-          'Your session expired. Please sign in again.'
-        );
+        setError('Your session expired. Please sign in again.');
       });
 
     return () => {
@@ -364,13 +370,12 @@ export default function SuperAdmin() {
 
   useEffect(() => {
     if (user?.role === 'SUPER_ADMIN') {
-      loadDashboard();
+      void loadDashboard();
     }
   }, [user, loadDashboard]);
 
   async function login(event: FormEvent) {
     event.preventDefault();
-
     if (loading) return;
 
     setLoading(true);
@@ -379,13 +384,8 @@ export default function SuperAdmin() {
     try {
       const response = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password })
       });
 
       const result = await response.json().catch(() => ({}));
@@ -394,29 +394,16 @@ export default function SuperAdmin() {
         throw new Error(result.error || 'Login failed.');
       }
 
-      if (
-        !result.token ||
-        result.user?.role !== 'SUPER_ADMIN'
-      ) {
-        throw new Error(
-          'This account is not an authorized Super Admin account.'
-        );
+      if (!result.token || result.user?.role !== 'SUPER_ADMIN') {
+        throw new Error('This account is not an authorized Super Admin account.');
       }
 
-      localStorage.setItem(
-        'ahb_admin_token',
-        result.token
-      );
-
-      localStorage.removeItem('ahb_token');
-
+      localStorage.setItem('ahb_admin_token', result.token);
       setToken(result.token);
       setUser(result.user);
       setPassword('');
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : 'Login failed.'
-      );
+      setError(e instanceof Error ? e.message : 'Login failed.');
     } finally {
       setLoading(false);
     }
@@ -424,7 +411,6 @@ export default function SuperAdmin() {
 
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
-
     setLoading(true);
     setError('');
     setMessage('');
@@ -435,621 +421,737 @@ export default function SuperAdmin() {
         body: JSON.stringify(settings)
       });
 
-      setMessage('Website settings saved successfully.');
+      setMessage('Website settings saved.');
       await loadDashboard();
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Could not save settings.'
-      );
+      setError(e instanceof Error ? e.message : 'Could not save settings.');
     } finally {
       setLoading(false);
     }
   }
 
-  async function reviewPayment(
-    id: string,
-    decision: 'APPROVE' | 'REJECT'
-  ) {
-    const confirmed = window.confirm(
-      `Are you sure you want to ${decision.toLowerCase()} this payment?`
-    );
-
-    if (!confirmed) return;
+  async function reviewPayment(id: string, decision: 'APPROVE' | 'REJECT') {
+    if (!window.confirm(`Confirm ${decision.toLowerCase()} payment?`)) return;
 
     setLoading(true);
     setError('');
     setMessage('');
 
     try {
-      await api(`/api/admin/payments/${id}/review`, {
+      await api(`/api/admin/payments/${encodeURIComponent(id)}/review`, {
         method: 'POST',
         body: JSON.stringify({
           decision,
-          note: 'Reviewed from Super Admin panel'
+          note: 'Reviewed from Super Admin Control Center'
         })
       });
 
-      setMessage(
-        `Payment ${decision.toLowerCase()}d.`
-      );
-
+      setMessage(`Payment ${decision.toLowerCase()}d.`);
       await loadDashboard();
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Payment review failed.'
-      );
+      setError(e instanceof Error ? e.message : 'Payment review failed.');
     } finally {
       setLoading(false);
     }
   }
 
   const filteredUsers = useMemo(() => {
+    const term = search.toLowerCase();
+
     return users.filter(item => {
-      const term = search.toLowerCase();
-
-      const matchesSearch =
+      const matches =
         !term ||
-        item.email.toLowerCase().includes(term) ||
-        (item.displayName || '').toLowerCase().includes(term) ||
-        item.id.toLowerCase().includes(term);
+        item.email?.toLowerCase().includes(term) ||
+        item.displayName?.toLowerCase().includes(term) ||
+        item.id?.toLowerCase().includes(term);
 
-      const matchesRole =
-        userFilter === 'ALL' ||
-        item.role === userFilter;
-
-      return matchesSearch && matchesRole;
+      return matches &&
+        (userRoleFilter === 'ALL' || item.role === userRoleFilter);
     });
-  }, [users, search, userFilter]);
+  }, [users, search, userRoleFilter]);
 
   const filteredPayments = useMemo(() => {
-    return payments.filter(payment => {
-      const term = search.toLowerCase();
+    const term = search.toLowerCase();
 
-      const matchesSearch =
+    return payments.filter(item => {
+      const matches =
         !term ||
-        payment.email.toLowerCase().includes(term) ||
-        payment.transactionReference.toLowerCase().includes(term);
+        item.email?.toLowerCase().includes(term) ||
+        item.transactionReference?.toLowerCase().includes(term);
 
-      const matchesStatus =
-        paymentFilter === 'ALL' ||
-        payment.status === paymentFilter;
-
-      return matchesSearch && matchesStatus;
+      return matches &&
+        (paymentFilter === 'ALL' || item.status === paymentFilter);
     });
   }, [payments, search, paymentFilter]);
 
-  const pendingPayments = payments.filter(
-    payment => payment.status === 'PENDING'
-  );
-
-  const staffUsers = users.filter(
-    item =>
-      item.role !== 'USER' &&
-      item.role !== 'SUPER_ADMIN'
-  );
+  const pendingPayments = payments.filter(x => x.status === 'PENDING');
+  const staff = users.filter(x => !['USER', 'SUPER_ADMIN'].includes(x.role));
 
   if (!token || !user) {
     return (
-      <div className="sa-login-page">
-        <form
-          className="sa-login-card"
-          onSubmit={login}
-        >
-          <div className="sa-logo">AH</div>
+      <div style={{
+        minHeight: '100vh',
+        background: '#08080b',
+        color: '#fff',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 20
+      }}>
+        <form onSubmit={login} style={{
+          width: '100%',
+          maxWidth: 430,
+          background: '#111116',
+          border: '1px solid #333',
+          borderRadius: 20,
+          padding: 30
+        }}>
+          <div style={{
+            width: 55,
+            height: 55,
+            display: 'grid',
+            placeItems: 'center',
+            background: '#d4af37',
+            color: '#111',
+            borderRadius: 15,
+            fontWeight: 1000,
+            fontSize: 21
+          }}>AH</div>
 
-          <div className="sa-eyebrow">
+          <p style={{ color: '#d4af37', letterSpacing: 3, fontSize: 11, marginTop: 24 }}>
             ANIME HUB BANGLA
-          </div>
-
-          <h1>Super Admin</h1>
-
-          <p>
-            Sign in to access the complete platform control center.
           </p>
 
-          <label>Email address</label>
+          <h1 style={{ fontSize: 32, margin: '8px 0' }}>Super Admin</h1>
+          <p style={{ color: '#999', lineHeight: 1.6 }}>
+            Secure access to the complete platform control center.
+          </p>
 
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="Super Admin email"
-          />
+          <label style={{ display: 'block', marginTop: 24 }}>
+            Email address
+            <input
+              style={inputStyle}
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="Super Admin email"
+            />
+          </label>
 
-          <label>Password</label>
+          <label style={{ display: 'block', marginTop: 16 }}>
+            Password
+            <input
+              style={inputStyle}
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Your password"
+            />
+          </label>
 
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Your password"
-          />
-
-          {error && (
-            <div className="sa-error">{error}</div>
-          )}
+          {error && <p style={{ color: '#ff8585' }}>{error}</p>}
 
           <button
-            className="sa-primary"
+            type="submit"
             disabled={loading}
+            style={{ ...buttonStyle, width: '100%', marginTop: 22 }}
           >
-            {loading ? 'Signing in...' : 'Secure Sign In'}
+            {loading ? 'Signing in…' : 'Secure Sign In'}
           </button>
 
-          <a href="/">← Back to website</a>
+          <a href="/" style={{
+            display: 'block',
+            color: '#aaa',
+            textAlign: 'center',
+            marginTop: 22,
+            textDecoration: 'none'
+          }}>
+            ← Back to website
+          </a>
 
-          <small>
-            Restricted access · Super Admin only
+          <small style={{ display: 'block', color: '#777', textAlign: 'center', marginTop: 20 }}>
+            <Lock size={12} style={{ verticalAlign: 'middle' }} /> Super Admin permission required
           </small>
         </form>
       </div>
     );
   }
 
-  const currentSection = sections.find(
-    item => item.id === section
-  );
+  const current = nav.find(x => x.id === section);
+
+  const go = (id: Section) => {
+    setSection(id);
+    setMenuOpen(false);
+    setSearch('');
+    setError('');
+    setMessage('');
+  };
 
   return (
-    <div className="sa-layout">
-      <aside
-        className={`sa-sidebar ${menuOpen ? 'open' : ''}`}
-      >
-        <div className="sa-brand">
-          <span className="sa-logo">AH</span>
+    <div style={{
+      minHeight: '100vh',
+      background: '#09090d',
+      color: '#f4f4f5',
+      display: 'flex',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      {menuOpen && (
+        <button
+          onClick={() => setMenuOpen(false)}
+          aria-label="Close navigation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 20,
+            background: '#0009',
+            border: 0
+          }}
+        />
+      )}
 
+      <aside style={{
+        width: 260,
+        flexShrink: 0,
+        background: '#101015',
+        borderRight: '1px solid #292933',
+        padding: 18,
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'fixed',
+        zIndex: 30,
+        inset: '0 auto 0 0',
+        overflowY: 'auto',
+        transform: menuOpen ? 'translateX(0)' : undefined
+      }} className="sa-sidebar-responsive">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 30 }}>
+          <div style={{
+            background: '#d4af37',
+            color: '#111',
+            borderRadius: 10,
+            padding: 11,
+            fontWeight: 1000
+          }}>AH</div>
           <div>
-            <b>ANIME HUB</b>
-            <small>SUPER ADMIN</small>
+            <b style={{ display: 'block', letterSpacing: 1 }}>ANIME HUB</b>
+            <small style={{ color: '#d4af37', letterSpacing: 2 }}>SUPER ADMIN</small>
           </div>
-
           <button
-            className="sa-close"
             onClick={() => setMenuOpen(false)}
+            style={{ marginLeft: 'auto', background: 'none', color: '#aaa', border: 0 }}
           >
             <X />
           </button>
         </div>
 
-        {[
-          'MAIN',
-          'MANAGEMENT',
-          'FINANCE',
-          'CONTENT',
-          'SYSTEM'
-        ].map(group => {
-          const groupItems = sections.filter(
-            item => item.group === group
-          );
-
-          return (
-            <div key={group}>
-              <div className="sa-nav-label">
-                {group}
-              </div>
-
-              {groupItems.map(item => {
-                const Icon = item.icon;
-
-                return (
-                  <button
-                    key={item.id}
-                    className={`sa-nav-item ${
-                      section === item.id ? 'active' : ''
-                    }`}
-                    onClick={() => {
-                      setSection(item.id);
-                      setMenuOpen(false);
-                      setError('');
-                      setMessage('');
-                      setSearch('');
-                    }}
-                  >
-                    <Icon size={18} />
-                    {item.label}
-                  </button>
-                );
-              })}
+        {groups.map(group => (
+          <div key={group} style={{ marginBottom: 17 }}>
+            <div style={{
+              color: '#777',
+              fontSize: 10,
+              fontWeight: 900,
+              letterSpacing: 2,
+              padding: '8px 10px'
+            }}>
+              {group}
             </div>
-          );
-        })}
 
-        <div className="sa-sidebar-bottom">
-          <div className="sa-profile">
-            <ShieldCheck />
+            {nav.filter(item => item.group === group).map(item => {
+              const Icon = item.icon;
+              const active = section === item.id;
 
-            <div>
-              <b>
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => go(item.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 11,
+                    width: '100%',
+                    padding: '11px 10px',
+                    marginBottom: 4,
+                    border: 0,
+                    borderRadius: 9,
+                    textAlign: 'left',
+                    background: active ? '#302817' : 'transparent',
+                    color: active ? '#e7c75b' : '#aaa',
+                    cursor: 'pointer',
+                    fontSize: 13
+                  }}
+                >
+                  <Icon size={17} />
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {active && <ChevronRight size={15} />}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+
+        <div style={{
+          borderTop: '1px solid #292933',
+          marginTop: 'auto',
+          paddingTop: 18
+        }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+            <Crown color="#d4af37" />
+            <div style={{ minWidth: 0 }}>
+              <b style={{ display: 'block', fontSize: 13 }}>
                 {user.displayName || 'Super Admin'}
               </b>
-              <small>{user.email}</small>
+              <small style={{ color: '#888', overflowWrap: 'anywhere' }}>{user.email}</small>
             </div>
           </div>
 
           <button
-            className="sa-logout"
             onClick={logout}
+            style={{
+              width: '100%',
+              padding: 11,
+              border: '1px solid #443333',
+              background: '#241616',
+              color: '#ffaaaa',
+              borderRadius: 9,
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 9
+            }}
           >
-            <LogOut size={17} />
-            Sign out
+            <LogOut size={16} /> Sign out
           </button>
         </div>
       </aside>
 
-      <main className="sa-main">
-        <header className="sa-topbar">
-          <button
-            className="sa-menu"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <Menu />
-          </button>
-
-          <div>
-            <span className="sa-eyebrow">
-              PLATFORM CONTROL CENTER
-            </span>
-
-            <h1>{currentSection?.label}</h1>
+      <main style={{
+        flex: 1,
+        minWidth: 0,
+        marginLeft: 260,
+        padding: '24px clamp(14px, 3vw, 34px)',
+        maxWidth: 1800
+      }} className="sa-main-responsive">
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 14,
+          flexWrap: 'wrap',
+          borderBottom: '1px solid #292933',
+          paddingBottom: 20,
+          marginBottom: 24
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+            <button
+              onClick={() => setMenuOpen(true)}
+              style={{
+                display: 'none',
+                background: '#17171e',
+                border: '1px solid #333',
+                color: '#fff',
+                borderRadius: 8,
+                padding: 9
+              }}
+              className="sa-mobile-menu"
+            >
+              <Menu />
+            </button>
+            <div>
+              <small style={{ color: '#d4af37', letterSpacing: 2 }}>
+                PLATFORM CONTROL CENTER
+              </small>
+              <h1 style={{ margin: '5px 0 0', fontSize: 25 }}>
+                {current?.label || 'Dashboard'}
+              </h1>
+            </div>
           </div>
 
-          <button
-            className="sa-refresh"
-            disabled={loading}
-            onClick={loadDashboard}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </button>
+          <div style={{ display: 'flex', gap: 9, alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href="/" target="_blank" rel="noreferrer" style={{
+              color: '#ccc',
+              textDecoration: 'none',
+              border: '1px solid #333',
+              borderRadius: 9,
+              padding: '10px 12px',
+              fontSize: 12
+            }}>
+              <Eye size={14} style={{ verticalAlign: 'middle' }} /> View Website
+            </a>
+
+            <button
+              onClick={() => void loadDashboard()}
+              disabled={loading}
+              style={{
+                ...buttonStyle,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <RefreshCw size={15} /> {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </header>
 
         {error && (
-          <div className="sa-error sa-notice">
-            <AlertTriangle />
-            {error}
+          <div style={{
+            ...panelStyle,
+            borderColor: '#733939',
+            color: '#ffaaaa',
+            marginBottom: 16
+          }}>
+            <AlertTriangle size={17} style={{ verticalAlign: 'middle' }} /> {error}
           </div>
         )}
 
         {message && (
-          <div className="sa-success sa-notice">
-            <CheckCircle />
-            {message}
+          <div style={{
+            ...panelStyle,
+            borderColor: '#426a4c',
+            color: '#a8e6b6',
+            marginBottom: 16
+          }}>
+            <CheckCircle size={17} style={{ verticalAlign: 'middle' }} /> {message}
           </div>
         )}
 
-        {/* DASHBOARD */}
-
         {section === 'overview' && (
           <>
-            <div className="sa-welcome">
+            <div style={{
+              ...panelStyle,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 15,
+              flexWrap: 'wrap',
+              marginBottom: 20
+            }}>
               <div>
-                <h2>
+                <h2 style={{ margin: 0 }}>
                   Welcome back, {user.displayName || 'Super Admin'}
                 </h2>
-
-                <p>
-                  Manage Anime Hub Bangla from one central workspace.
+                <p style={{ color: '#999', marginBottom: 0 }}>
+                  Your complete Anime Hub Bangla platform overview.
                 </p>
               </div>
-
-              <span className="sa-live">
-                <i />
-                {health?.online
-                  ? 'API Online'
-                  : 'API Status Unknown'}
-              </span>
+              <Status value={health?.online ? 'ONLINE' : 'CHECK STATUS'} />
             </div>
 
-            <div className="sa-stats">
-              <StatCard
-                label="Total Anime"
-                value={summary?.anime}
-                icon={Film}
-              />
-
-              <StatCard
-                label="Total Episodes"
-                value={summary?.episodes}
-                icon={Activity}
-              />
-
-              <StatCard
-                label="Registered Users"
-                value={summary?.users}
-                icon={Users}
-              />
-
-              <StatCard
-                label="Pending Payments"
-                value={pendingPayments.length}
-                icon={CreditCard}
-              />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
+              gap: 13,
+              marginBottom: 20
+            }}>
+              <Card title="Anime Titles" value={summary?.anime ?? anime.length} icon={Film} />
+              <Card title="Episodes" value={summary?.episodes ?? '—'} icon={Layers} />
+              <Card title="Registered Users" value={summary?.users ?? users.length} icon={Users} />
+              <Card title="Pending Payments" value={pendingPayments.length} icon={CreditCard} />
             </div>
 
-            <div className="sa-grid">
-              <section className="sa-panel">
-                <h3>
-                  <BarChart3 />
-                  Platform Overview
-                </h3>
-
-                <div className="sa-system-row">
-                  <span>Anime catalogue</span>
-                  <b>{anime.length} loaded</b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Registered accounts</span>
-                  <b>{users.length}</b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Staff accounts</span>
-                  <b>{staffUsers.length}</b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Payment submissions</span>
-                  <b>{payments.length}</b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Pending reviews</span>
-                  <b>{pendingPayments.length}</b>
-                </div>
-              </section>
-
-              <section className="sa-panel">
-                <h3>
-                  <Server />
-                  Service Status
-                </h3>
-
-                <div className="sa-system-row">
-                  <span>API server</span>
-                  <b>
-                    {health?.online ? 'Online' : 'Unavailable'}
-                  </b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Database</span>
-                  <b>
-                    {String(health?.database || 'Not reported')}
-                  </b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Current role</span>
-                  <b>SUPER_ADMIN</b>
-                </div>
-
-                <div className="sa-system-row">
-                  <span>Authentication</span>
-                  <b>Bearer token</b>
-                </div>
-
-                <a
-                  className="sa-link"
-                  href={`${API}/api/health`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View API health
-                  <ExternalLink size={14} />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))',
+              gap: 15
+            }}>
+              <section style={panelStyle}>
+                <h3><Server size={18} color="#d4af37" /> Platform Services</h3>
+                {[
+                  ['API Server', health?.online ? 'ONLINE' : 'UNAVAILABLE'],
+                  ['Database', String(health?.database || 'NOT REPORTED').toUpperCase()],
+                  ['Admin Permission', user.role],
+                  ['Authentication', 'JWT BEARER TOKEN']
+                ].map(([label, value]) => (
+                  <div key={label} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    borderBottom: '1px solid #292933',
+                    padding: '12px 0',
+                    fontSize: 13
+                  }}>
+                    <span style={{ color: '#aaa' }}>{label}</span>
+                    <b>{value}</b>
+                  </div>
+                ))}
+                <a href={`${API}/api/health`} target="_blank" rel="noreferrer"
+                  style={{ color: '#d4af37', display: 'inline-block', marginTop: 17 }}>
+                  Open health endpoint <ExternalLink size={13} />
                 </a>
               </section>
+
+              <section style={panelStyle}>
+                <h3><Activity size={18} color="#d4af37" /> Platform Activity</h3>
+                {[
+                  ['Anime catalogue', anime.length],
+                  ['User accounts', users.length],
+                  ['Staff accounts', staff.length],
+                  ['Payment records', payments.length],
+                  ['Pending payment reviews', pendingPayments.length]
+                ].map(([label, value]) => (
+                  <div key={String(label)} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid #292933',
+                    padding: '12px 0',
+                    fontSize: 13
+                  }}>
+                    <span style={{ color: '#aaa' }}>{label}</span>
+                    <b>{value}</b>
+                  </div>
+                ))}
+              </section>
             </div>
 
-            <section className="sa-panel">
-              <h3>
-                <Clock />
-                Pending Payment Reviews
-              </h3>
+            <section style={{ ...panelStyle, marginTop: 16 }}>
+              <SectionTitle
+                title="Quick Access"
+                description="Open the main platform management areas."
+              />
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))',
+                gap: 10
+              }}>
+                {[
+                  ['Website CMS', 'website', Globe],
+                  ['Anime & Episodes', 'content', Film],
+                  ['Partners', 'collaborations', Handshake],
+                  ['Users', 'users', Users],
+                  ['Payments', 'payments', CreditCard],
+                  ['Revenue', 'revenue', Wallet],
+                  ['Operations', 'operations', Activity],
+                  ['System', 'system', Shield]
+                ].map(([label, id, Icon]) => {
+                  const ItemIcon = Icon as typeof LayoutDashboard;
+                  return (
+                    <button
+                      key={String(id)}
+                      onClick={() => go(id as Section)}
+                      style={{
+                        background: '#191920',
+                        color: '#eee',
+                        border: '1px solid #333',
+                        borderRadius: 11,
+                        padding: 16,
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <ItemIcon size={20} color="#d4af37" />
+                      <b style={{ display: 'block', marginTop: 10 }}>{String(label)}</b>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
 
-              {pendingPayments.length ? (
-                <div className="sa-table-wrap">
-                  <table className="sa-table">
-                    <thead>
-                      <tr>
-                        <th>User</th>
-                        <th>Plan</th>
-                        <th>Amount</th>
-                        <th>Method</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {pendingPayments.slice(0, 5).map(payment => (
-                        <tr key={payment.id}>
-                          <td>{payment.email}</td>
-                          <td>{payment.plan}</td>
-                          <td>{formatMoney(payment.amountBdt)}</td>
-                          <td>{payment.paymentMethod}</td>
-                          <td>
-                            <button
-                              onClick={() => {
-                                setSection('payments');
-                                setPaymentFilter('PENDING');
-                              }}
-                            >
-                              Review
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <section style={{ ...panelStyle, marginTop: 16 }}>
+              <SectionTitle title="Pending Payment Reviews" />
+              {pendingPayments.length === 0 ? (
+                <p style={{ color: '#888' }}>No pending payments found.</p>
+              ) : pendingPayments.map(payment => (
+                <div key={payment.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  borderBottom: '1px solid #292933',
+                  padding: '13px 0'
+                }}>
+                  <div>
+                    <b>{payment.email}</b>
+                    <small style={{ display: 'block', color: '#999', marginTop: 5 }}>
+                      {payment.plan} · {money(payment.amountBdt)} · {payment.transactionReference}
+                    </small>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button disabled={loading} style={buttonStyle}
+                      onClick={() => void reviewPayment(payment.id, 'APPROVE')}>
+                      Approve
+                    </button>
+                    <button disabled={loading}
+                      style={{ ...buttonStyle, background: '#532626', color: '#fff' }}
+                      onClick={() => void reviewPayment(payment.id, 'REJECT')}>
+                      Reject
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <p>No pending payment reviews.</p>
-              )}
+              ))}
             </section>
           </>
         )}
 
-        {/* WEBSITE CMS */}
-
         {section === 'website' && (
-          <section className="sa-panel">
-            <h2>
-              <Settings />
-              Website CMS & Settings
-            </h2>
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Website Content Management"
+              description="Manage website identity and homepage content through the connected settings API."
+              action={<a href="/" target="_blank" rel="noreferrer" style={{ color: '#d4af37' }}>Preview Website ↗</a>}
+            />
 
-            <p>
-              Update the website settings supported by the existing API.
-            </p>
+            <form onSubmit={saveSettings}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))',
+                gap: 17
+              }}>
+                {([
+                  ['siteName', 'Website Name'],
+                  ['tagline', 'Website Tagline'],
+                  ['heroTitle', 'Homepage Hero Title'],
+                  ['heroSubtitle', 'Homepage Hero Subtitle'],
+                  ['contactEmail', 'Contact Email']
+                ] as [keyof SettingsData, string][]).map(([key, label]) => (
+                  <label key={key} style={{ display: 'block', color: '#bbb', fontSize: 13 }}>
+                    {label}
+                    <input
+                      style={inputStyle}
+                      value={String(settings[key] || '')}
+                      onChange={e => setSettings(old => ({ ...old, [key]: e.target.value }))}
+                    />
+                  </label>
+                ))}
+              </div>
 
-            <form
-              className="sa-form"
-              onSubmit={saveSettings}
-            >
-              <label>Website name</label>
+              <label style={{ display: 'block', marginTop: 18, color: '#bbb', fontSize: 13 }}>
+                Website Announcement / Notice
+                <textarea
+                  style={{ ...inputStyle, minHeight: 110, resize: 'vertical' }}
+                  value={settings.announcement}
+                  onChange={e => setSettings(old => ({ ...old, announcement: e.target.value }))}
+                  placeholder="Write an announcement for visitors..."
+                />
+              </label>
 
-              <input
-                value={settings.siteName}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    siteName: e.target.value
-                  })
-                }
-              />
-
-              <label>Tagline</label>
-
-              <input
-                value={settings.tagline}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    tagline: e.target.value
-                  })
-                }
-              />
-
-              <label>Hero title</label>
-
-              <input
-                value={settings.heroTitle}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    heroTitle: e.target.value
-                  })
-                }
-              />
-
-              <label>Hero subtitle</label>
-
-              <textarea
-                value={settings.heroSubtitle}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    heroSubtitle: e.target.value
-                  })
-                }
-              />
-
-              <label>Announcement</label>
-
-              <textarea
-                value={settings.announcement}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    announcement: e.target.value
-                  })
-                }
-              />
-
-              <label>Contact email</label>
-
-              <input
-                type="email"
-                value={settings.contactEmail}
-                onChange={e =>
-                  setSettings({
-                    ...settings,
-                    contactEmail: e.target.value
-                  })
-                }
-              />
-
-              <label className="sa-toggle">
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                margin: '20px 0',
+                color: '#ddd'
+              }}>
                 <input
                   type="checkbox"
                   checked={settings.maintenanceMode}
-                  onChange={e =>
-                    setSettings({
-                      ...settings,
-                      maintenanceMode: e.target.checked
-                    })
-                  }
+                  onChange={e => setSettings(old => ({
+                    ...old,
+                    maintenanceMode: e.target.checked
+                  }))}
                 />
-                Enable maintenance mode
+                Maintenance mode setting
               </label>
 
-              <button
-                className="sa-primary"
-                disabled={loading}
-              >
-                {loading
-                  ? 'Saving...'
-                  : 'Save Website Settings'}
+              <button disabled={loading} style={buttonStyle}>
+                {loading ? 'Saving…' : 'Save Website Settings'}
               </button>
             </form>
 
-            <p className="sa-muted">
-              The public homepage must read these settings
-              to display the saved changes.
-            </p>
+            <div style={{ borderTop: '1px solid #333', marginTop: 25, paddingTop: 20 }}>
+              <h3><Palette size={18} color="#d4af37" /> Website Management Areas</h3>
+              <p style={{ color: '#999', lineHeight: 1.7 }}>
+                Logo and image library, homepage section ordering, SEO metadata,
+                social links, custom pages, theme settings, navigation menus,
+                legal pages and announcement scheduling can be added as dedicated
+                CMS modules. Only the settings fields connected to the backend
+                are editable here at present.
+              </p>
+            </div>
           </section>
         )}
 
-        {/* COLLABORATION & STUDIOS */}
-
         {section === 'collaborations' && (
-          <PartnerManagement token={token} />
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Collaboration & Partner Network"
+              description="Manage public partner organizations, dubbing teams, animation studios and media partners."
+            />
+            <PartnerManagement token={token} />
+          </section>
         )}
 
-        {/* USER MANAGEMENT */}
+        {section === 'content' && (
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Anime & Content Management"
+              description="Anime catalogue, episode publishing, video provider settings and content tools."
+            />
+            <div style={{ color: '#aaa', marginBottom: 15 }}>
+              {anime.length} anime records loaded from the connected API.
+            </div>
+            <Admin />
+          </section>
+        )}
+
+        {section === 'operations' && (
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Platform Operations"
+              description="Operational tools are consolidated into this Super Admin workspace."
+            />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
+              gap: 12,
+              marginBottom: 22
+            }}>
+              {[
+                ['Advertisement Management', 'Ad campaigns, placements and imported provider reports', Megaphone],
+                ['Sponsor CRM', 'Sponsor records, deal status and revenue records', Handshake],
+                ['Community Moderation', 'Comment review and moderation controls', MessageSquare],
+                ['Episode Management', 'Episode publishing and video upload controls', Film],
+                ['Staff Operations', 'Staff accounts and assigned roles', UserCog],
+                ['Payment Operations', 'Payment verification and review tools', CreditCard]
+              ].map(([title, description, Icon]) => {
+                const ItemIcon = Icon as typeof LayoutDashboard;
+                return (
+                  <div key={String(title)} style={{
+                    background: '#191920',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: 17
+                  }}>
+                    <ItemIcon color="#d4af37" size={21} />
+                    <b style={{ display: 'block', marginTop: 10 }}>{String(title)}</b>
+                    <small style={{ display: 'block', color: '#999', marginTop: 7, lineHeight: 1.5 }}>
+                      {String(description)}
+                    </small>
+                  </div>
+                );
+              })}
+            </div>
+            <Admin />
+          </section>
+        )}
 
         {section === 'users' && (
-          <section className="sa-panel">
-            <h2>
-              <Users />
-              User Management
-            </h2>
+          <section style={panelStyle}>
+            <SectionTitle
+              title="User Management"
+              description="Search and review registered accounts. Role changes and account restrictions require protected backend actions."
+            />
 
-            <p>
-              Search registered accounts and review their
-              current roles and account statuses.
-            </p>
-
-            <div className="sa-toolbar">
-              <div className="sa-search">
-                <Search size={17} />
-
+            <div style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              marginBottom: 18
+            }}>
+              <div style={{ flex: 1, minWidth: 190, position: 'relative' }}>
+                <Search size={17} style={{ position: 'absolute', top: 18, left: 12, color: '#888' }} />
                 <input
+                  style={{ ...inputStyle, paddingLeft: 38, marginTop: 0 }}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search name, email or ID..."
                 />
               </div>
-
               <select
-                value={userFilter}
-                onChange={e => setUserFilter(e.target.value)}
+                style={{ ...inputStyle, width: 'auto', minWidth: 170, marginTop: 0 }}
+                value={userRoleFilter}
+                onChange={e => setUserRoleFilter(e.target.value)}
               >
                 <option value="ALL">All roles</option>
                 <option value="USER">Users</option>
@@ -1057,158 +1159,117 @@ export default function SuperAdmin() {
                 <option value="MODERATOR">Moderators</option>
                 <option value="CONTENT_MANAGER">Content Managers</option>
                 <option value="ADVERTISEMENT_MANAGER">Ad Managers</option>
-                <option value="COLLABORATION_MANAGER">
-                  Collaboration Managers
-                </option>
+                <option value="COLLABORATION_MANAGER">Collaboration Managers</option>
                 <option value="ANALYST">Analysts</option>
                 <option value="SUPER_ADMIN">Super Admins</option>
               </select>
             </div>
 
-            <div className="sa-table-wrap">
-              <table className="sa-table">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
                 <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Account ID</th>
+                    {['Name', 'Email', 'Role', 'Status', 'Account ID'].map(x => (
+                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                    ))}
                   </tr>
                 </thead>
-
                 <tbody>
                   {filteredUsers.map(item => (
                     <tr key={item.id}>
-                      <td>{item.displayName || 'User'}</td>
-                      <td>{item.email}</td>
-                      <td>{item.role}</td>
-                      <td>{item.status}</td>
-                      <td>{item.id}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{item.displayName || 'User'}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{item.email}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{item.role}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}><Status value={item.status} /></td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933', fontSize: 11 }}>{item.id}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {!filteredUsers.length && (
-                <p>No matching users found.</p>
-              )}
             </div>
-
-            <p className="sa-muted">
-              This is a read-only user overview.
-              Protected role and suspension management
-              requires dedicated backend endpoints.
+            {!filteredUsers.length && <p style={{ color: '#888' }}>No matching users.</p>}
+            <p style={{ color: '#888', fontSize: 12, marginTop: 18 }}>
+              Account suspension, deletion, password resets, role changes and session revocation
+              should be enabled only through audited server-side endpoints.
             </p>
           </section>
         )}
-
-        {/* STAFF */}
 
         {section === 'staff' && (
-          <section className="sa-panel">
-            <h2>
-              <UserCog />
-              Staff & Role Overview
-            </h2>
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Staff & Permissions"
+              description="Staff accounts, team roles, moderation and operational permissions."
+            />
 
-            <p>
-              Review staff accounts and their assigned roles.
-            </p>
-
-            <div className="sa-stats">
-              <StatCard
-                label="Total Staff"
-                value={staffUsers.length}
-                icon={Users}
-              />
-
-              <StatCard
-                label="Admins"
-                value={staffUsers.filter(
-                  x => x.role === 'ADMIN'
-                ).length}
-                icon={ShieldCheck}
-              />
-
-              <StatCard
-                label="Moderators"
-                value={staffUsers.filter(
-                  x => x.role === 'MODERATOR'
-                ).length}
-                icon={MessageSquare}
-              />
-
-              <StatCard
-                label="Content Managers"
-                value={staffUsers.filter(
-                  x => x.role === 'CONTENT_MANAGER'
-                ).length}
-                icon={Film}
-              />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))',
+              gap: 12,
+              marginBottom: 20
+            }}>
+              <Card title="Staff Members" value={staff.length} icon={Users} />
+              <Card title="Admins" value={staff.filter(x => x.role === 'ADMIN').length} icon={Shield} />
+              <Card title="Moderators" value={staff.filter(x => x.role === 'MODERATOR').length} icon={MessageSquare} />
+              <Card title="Content Managers" value={staff.filter(x => x.role === 'CONTENT_MANAGER').length} icon={Film} />
             </div>
 
-            <div className="sa-table-wrap">
-              <table className="sa-table">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 550 }}>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
+                    {['Name', 'Email', 'Role', 'Status'].map(x => (
+                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                    ))}
                   </tr>
                 </thead>
-
                 <tbody>
-                  {staffUsers.map(member => (
+                  {staff.map(member => (
                     <tr key={member.id}>
-                      <td>{member.displayName || 'Staff'}</td>
-                      <td>{member.email}</td>
-                      <td>{member.role}</td>
-                      <td>{member.status}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{member.displayName || 'Staff'}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{member.email}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}>{member.role}</td>
+                      <td style={{ padding: 12, borderBottom: '1px solid #292933' }}><Status value={member.status} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {!staffUsers.length && (
-                <p>No staff accounts found.</p>
-              )}
             </div>
 
-            <a className="sa-link" href="/admin">
-              Open Admin Panel for staff operations
-              <ExternalLink size={14} />
-            </a>
+            <div style={{ marginTop: 22, borderTop: '1px solid #333', paddingTop: 18 }}>
+              <h3>Permission architecture</h3>
+              <p style={{ color: '#999', lineHeight: 1.7 }}>
+                Super Admin, Admin, Content Manager, Advertisement Manager,
+                Collaboration Manager, Moderator and Analyst roles are supported
+                by the platform's role-based access system. Assigning or changing
+                permissions must be performed through the protected staff API.
+              </p>
+            </div>
+            <Admin />
           </section>
         )}
 
-        {/* PAYMENTS */}
-
         {section === 'payments' && (
-          <section className="sa-panel">
-            <h2>
-              <CreditCard />
-              Payment Management
-            </h2>
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Payment Management"
+              description="Review premium and membership payment submissions."
+            />
 
-            <p>
-              Verify transactions in the relevant merchant
-              account before approving a payment.
-            </p>
-
-            <div className="sa-toolbar">
-              <div className="sa-search">
-                <Search size={17} />
-
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search email or transaction ID..."
-                />
-              </div>
-
+            <div style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              marginBottom: 18
+            }}>
+              <input
+                style={{ ...inputStyle, flex: 1, minWidth: 190, marginTop: 0 }}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search email or transaction reference..."
+              />
               <select
+                style={{ ...inputStyle, width: 'auto', marginTop: 0 }}
                 value={paymentFilter}
                 onChange={e => setPaymentFilter(e.target.value)}
               >
@@ -1219,470 +1280,266 @@ export default function SuperAdmin() {
               </select>
             </div>
 
-            <div className="sa-stats">
-              <StatCard
-                label="All Submissions"
-                value={payments.length}
-                icon={CreditCard}
-              />
-
-              <StatCard
-                label="Pending"
-                value={pendingPayments.length}
-                icon={Clock}
-              />
-
-              <StatCard
-                label="Approved"
-                value={payments.filter(
-                  x => x.status === 'APPROVED'
-                ).length}
-                icon={CheckCircle}
-              />
-
-              <StatCard
-                label="Rejected"
-                value={payments.filter(
-                  x => x.status === 'REJECTED'
-                ).length}
-                icon={AlertTriangle}
-              />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
+              gap: 12,
+              marginBottom: 20
+            }}>
+              <Card title="All Payments" value={payments.length} icon={CreditCard} />
+              <Card title="Pending" value={pendingPayments.length} icon={Clock} />
+              <Card title="Approved" value={payments.filter(x => x.status === 'APPROVED').length} icon={CheckCircle} />
+              <Card title="Rejected" value={payments.filter(x => x.status === 'REJECTED').length} icon={AlertTriangle} />
             </div>
 
-            <div className="sa-table-wrap">
-              <table className="sa-table">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 850 }}>
                 <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Plan</th>
-                    <th>Method</th>
-                    <th>Reference</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    {['User', 'Plan', 'Method', 'Reference', 'Amount', 'Status', 'Actions'].map(x => (
+                      <th key={x} style={{ textAlign: 'left', padding: 11, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                    ))}
                   </tr>
                 </thead>
-
                 <tbody>
                   {filteredPayments.map(payment => (
                     <tr key={payment.id}>
-                      <td>{payment.email}</td>
-                      <td>{payment.plan}</td>
-                      <td>{payment.paymentMethod}</td>
-                      <td>{payment.transactionReference}</td>
-                      <td>{formatMoney(payment.amountBdt)}</td>
-                      <td>{payment.status}</td>
-                      <td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>{payment.email}</td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>{payment.plan}</td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>{payment.paymentMethod}</td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>{payment.transactionReference}</td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>{money(payment.amountBdt)}</td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}><Status value={payment.status} /></td>
+                      <td style={{ padding: 11, borderBottom: '1px solid #292933' }}>
                         {payment.status === 'PENDING' ? (
-                          <div className="sa-actions">
-                            <button
-                              disabled={loading}
-                              onClick={() =>
-                                reviewPayment(
-                                  payment.id,
-                                  'APPROVE'
-                                )
-                              }
-                            >
-                              Approve
-                            </button>
-
-                            <button
-                              disabled={loading}
-                              onClick={() =>
-                                reviewPayment(
-                                  payment.id,
-                                  'REJECT'
-                                )
-                              }
-                            >
-                              Reject
-                            </button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button disabled={loading} style={buttonStyle} onClick={() => void reviewPayment(payment.id, 'APPROVE')}>Approve</button>
+                            <button disabled={loading} style={{ ...buttonStyle, background: '#542626', color: '#fff' }} onClick={() => void reviewPayment(payment.id, 'REJECT')}>Reject</button>
                           </div>
-                        ) : (
-                          'Reviewed'
-                        )}
+                        ) : 'Reviewed'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {!filteredPayments.length && (
-                <p>No matching payment submissions.</p>
-              )}
             </div>
+            {!filteredPayments.length && <p style={{ color: '#888' }}>No matching payments.</p>}
+            <p style={{ color: '#888', fontSize: 12, marginTop: 15 }}>
+              Verify each transaction with the payment provider before approval.
+            </p>
           </section>
         )}
 
-        {/* REVENUE & ANALYTICS */}
-
         {section === 'revenue' && (
-          <div className="sa-analytics">
-            <section className="sa-panel">
-              <div className="sa-analytics-heading">
-                <div>
-                  <h2>
-                    <Wallet />
-                    Revenue Summary
-                  </h2>
-
-                  <p className="sa-muted">
-                    Financial records from the platform API.
-                  </p>
-                </div>
-              </div>
-
+          <div style={{ display: 'grid', gap: 16 }}>
+            <section style={panelStyle}>
+              <SectionTitle
+                title="Revenue Overview"
+                description="Financial records returned by the connected backend."
+              />
               {revenue ? (
-                <pre>
-                  {JSON.stringify(revenue, null, 2)}
-                </pre>
-              ) : (
-                <p>Revenue data unavailable.</p>
-              )}
-
-              <p className="sa-muted">
-                Pending payments are not confirmed revenue.
-                Only verified financial records count as received income.
+                <>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
+                    gap: 12
+                  }}>
+                    <Card title="Premium Revenue" value={money(revenue.premium?.amount_bdt)} icon={Crown} detail={`${revenue.premium?.count || 0} approved payments`} />
+                    <Card title="Sponsor Deal Value" value={money(revenue.sponsors?.contracted_bdt)} icon={Handshake} detail={`${revenue.sponsors?.count || 0} sponsor records`} />
+                    <Card title="Ad Report Entries" value={revenue.ads?.length || 0} icon={Megaphone} detail="Imported provider data" />
+                  </div>
+                  <pre style={{
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
+                    background: '#09090d',
+                    borderRadius: 10,
+                    padding: 15,
+                    color: '#ccc',
+                    marginTop: 18
+                  }}>
+                    {JSON.stringify(revenue, null, 2)}
+                  </pre>
+                </>
+              ) : <p style={{ color: '#888' }}>Revenue data unavailable.</p>}
+              <p style={{ color: '#888', fontSize: 12 }}>
+                Pending payments are not received revenue. Ad revenue requires real provider reports.
               </p>
             </section>
 
-            <section className="sa-panel">
-              <div className="sa-analytics-heading">
-                <div>
-                  <h2>
-                    <BarChart3 />
-                    Playback Analytics
-                  </h2>
-
-                  <p className="sa-muted">
-                    Activity collected during the last{' '}
-                    {analytics?.period || '30 days'}.
-                  </p>
-                </div>
-              </div>
-
+            <section style={panelStyle}>
+              <SectionTitle
+                title="Playback Analytics"
+                description={`Recorded playback activity: ${analytics?.period || 'period not reported'}.`}
+              />
               {analytics ? (
                 <>
-                  <div className="sa-stats">
-                    <StatCard
-                      label="Total Plays"
-                      value={analytics.totals?.plays ?? 0}
-                      icon={Activity}
-                    />
-
-                    <StatCard
-                      label="Completions"
-                      value={analytics.totals?.completions ?? 0}
-                      icon={CheckCircle}
-                    />
-
-                    <StatCard
-                      label="Active Viewers"
-                      value={analytics.totals?.active_viewers ?? 0}
-                      icon={Users}
-                    />
-
-                    <StatCard
-                      label="Watch Time"
-                      value={`${Math.round(
-                        Number(
-                          analytics.daily?.reduce(
-                            (sum: number, item: any) =>
-                              sum + Number(
-                                item.watched_seconds || 0
-                              ),
-                            0
-                          ) || 0
-                        ) / 3600
-                      )} hrs`}
-                      icon={Clock}
-                    />
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))',
+                    gap: 12
+                  }}>
+                    <Card title="Play Events" value={analytics.totals?.plays ?? 0} icon={Activity} />
+                    <Card title="Completions" value={analytics.totals?.completions ?? 0} icon={CheckCircle} />
+                    <Card title="Active Viewers" value={analytics.totals?.active_viewers ?? 0} icon={Users} />
                   </div>
 
-                  <div className="sa-grid">
-                    <div className="sa-panel">
-                      <h3>
-                        <Activity />
-                        Daily Playback Activity
-                      </h3>
-
-                      {analytics.daily?.length ? (
-                        <div className="sa-activity-list">
-                          {analytics.daily.slice(-14).map(
-                            (item: any) => {
-                              const maxPlays = Math.max(
-                                1,
-                                ...analytics.daily.map(
-                                  (day: any) =>
-                                    Number(day.plays || 0)
-                                )
-                              );
-
-                              const percentage =
-                                Number(item.plays || 0) /
-                                maxPlays * 100;
-
-                              return (
-                                <div
-                                  className="sa-activity-row"
-                                  key={String(item.day)}
-                                >
-                                  <div>
-                                    <span>
-                                      {String(item.day).slice(0, 10)}
-                                    </span>
-
-                                    <b>
-                                      {Number(item.plays || 0)} plays
-                                    </b>
-                                  </div>
-
-                                  <div className="sa-activity-track">
-                                    <i
-                                      style={{
-                                        width: `${percentage}%`
-                                      }}
-                                    />
-                                  </div>
-
-                                  <small>
-                                    {Number(item.completions || 0)}
-                                    {' '}completed
-                                  </small>
-                                </div>
-                              );
-                            }
-                          )}
-                        </div>
-                      ) : (
-                        <p>No playback activity recorded yet.</p>
-                      )}
+                  <h3 style={{ marginTop: 25 }}>Top Anime</h3>
+                  {(analytics.topAnime || []).map((item: any, index: number) => (
+                    <div key={`${item.title}-${index}`} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: 12,
+                      borderBottom: '1px solid #292933'
+                    }}>
+                      <span>{index + 1}. {item.title}</span>
+                      <b>{Number(item.plays || 0).toLocaleString()} plays</b>
                     </div>
-
-                    <div className="sa-panel">
-                      <h3>
-                        <Film />
-                        Top Anime
-                      </h3>
-
-                      {analytics.topAnime?.length ? (
-                        <div className="sa-ranking-list">
-                          {analytics.topAnime.map(
-                            (item: any, index: number) => (
-                              <div
-                                className="sa-ranking-row"
-                                key={`${item.title}-${index}`}
-                              >
-                                <span>{index + 1}</span>
-                                <b>{item.title}</b>
-
-                                <strong>
-                                  {Number(
-                                    item.plays || 0
-                                  ).toLocaleString()}
-                                </strong>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <p>No ranking data available yet.</p>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </>
-              ) : (
-                <p>
-                  Analytics data unavailable. Check the API connection.
-                </p>
-              )}
-
-              <p className="sa-muted">
-                These figures represent recorded playback events.
-                They are not the same as website visits or verified
-                unique visitors.
-              </p>
+              ) : <p style={{ color: '#888' }}>Analytics unavailable.</p>}
             </section>
           </div>
         )}
 
-        {/* ANIME & CONTENT */}
-
-                {section === 'content' && (
-          <section className="sa-panel">
-            <h2>
-              <Film />
-              Anime, Episodes & Platform Operations
-            </h2>
-
-            <p>
-              All former Admin Panel tools are now embedded inside this
-              Super Admin Control Center. There is no separate admin workspace.
-            </p>
-
-            <div className="sa-system-row">
-              <span>Anime loaded from API</span>
-              <b>{anime.length}</b>
-            </div>
-
-            <div className="sa-embedded-admin">
-              <Admin />
-            </div>
-          </section>
-        )}
-
-        {/* OPERATIONS */}
-
-        {section === 'operations' && (
-          <section className="sa-panel">
-            <h2>
-              <Activity />
-              Platform Operations
-            </h2>
-
-            <p>
-              Open the existing Admin Panel modules for
-              operational tasks.
-            </p>
-
-            <div className="sa-operations-grid">
-              <a className="sa-operation-card" href="/admin">
-                <Megaphone />
-                <b>Advertisement Management</b>
-                <small>Ad campaigns, placements and reports</small>
-                <span>Open Admin Panel →</span>
-              </a>
-
-              <a className="sa-operation-card" href="/admin">
-                <Handshake />
-                <b>Sponsors & Partnerships</b>
-                <small>Sponsor and partnership operations</small>
-                <span>Open Admin Panel →</span>
-              </a>
-
-              <a className="sa-operation-card" href="/admin">
-                <MessageSquare />
-                <b>Community Moderation</b>
-                <small>Review community content and reports</small>
-                <span>Open Admin Panel →</span>
-              </a>
-
-              <a className="sa-operation-card" href="/admin">
-                <Film />
-                <b>Content Operations</b>
-                <small>Anime catalogue and episode management</small>
-                <span>Open Admin Panel →</span>
-              </a>
-
-              <a className="sa-operation-card" href="/admin">
-                <Users />
-                <b>Staff Workspace</b>
-                <small>Open staff administration tools</small>
-                <span>Open Admin Panel →</span>
-              </a>
-
-              <a className="sa-operation-card" href="/admin">
-                <CreditCard />
-                <b>Payment Operations</b>
-                <small>Review payment submissions</small>
-                <span>Open Admin Panel →</span>
-              </a>
-            </div>
-          </section>
-        )}
-
-        {/* SYSTEM & SECURITY */}
-
         {section === 'system' && (
-          <section className="sa-panel">
-            <h2>
-              <ShieldCheck />
-              System & Security
-            </h2>
+          <section style={panelStyle}>
+            <SectionTitle
+              title="System & Security"
+              description="Current service information and security status."
+              action={<button style={buttonStyle} onClick={() => void loadHealth()}><RefreshCw size={14} /> Check Again</button>}
+            />
 
-            <div className="sa-system-row">
-              <span>
-                <Server size={17} />
-                API endpoint
-              </span>
-              <b>{API}</b>
+            {[
+              ['Frontend Website', window.location.origin],
+              ['Backend API', API],
+              ['API Status', health?.online ? 'ONLINE' : 'UNAVAILABLE'],
+              ['Database', String(health?.database || 'NOT REPORTED')],
+              ['Current Account', user.email],
+              ['Access Role', user.role],
+              ['Authentication', 'JWT Bearer Token'],
+              ['Admin Access', 'SUPER_ADMIN']
+            ].map(([label, value]) => (
+              <div key={label} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 15,
+                flexWrap: 'wrap',
+                padding: '14px 0',
+                borderBottom: '1px solid #292933'
+              }}>
+                <span style={{ color: '#999' }}>{label}</span>
+                <b style={{ overflowWrap: 'anywhere' }}>{value}</b>
+              </div>
+            ))}
+
+            <div style={{ marginTop: 22 }}>
+              <h3><ShieldCheck size={18} color="#d4af37" /> Security checklist</h3>
+              {[
+                'Super Admin role is checked by the API',
+                'Admin access uses an authenticated token',
+                'Secrets should remain in provider environment variables',
+                'Payment approvals require transaction verification',
+                'Database backups must be configured at the database provider',
+                'Audit logs and multi-factor authentication need backend support'
+              ].map(item => (
+                <p key={item} style={{ color: '#bbb', fontSize: 13 }}>
+                  <Shield size={14} color="#d4af37" style={{ verticalAlign: 'middle' }} /> {item}
+                </p>
+              ))}
             </div>
 
-            <div className="sa-system-row">
-              <span>
-                <Activity size={17} />
-                API server
-              </span>
-              <b>
-                {health?.online ? 'Online' : 'Unavailable'}
-              </b>
-            </div>
-
-            <div className="sa-system-row">
-              <span>
-                <Database size={17} />
-                Database
-              </span>
-              <b>
-                {String(health?.database || 'Not reported')}
-              </b>
-            </div>
-
-            <div className="sa-system-row">
-              <span>
-                <ShieldCheck size={17} />
-                Current account role
-              </span>
-              <b>{user.role}</b>
-            </div>
-
-            <div className="sa-system-row">
-              <span>
-                <Crown size={17} />
-                Access level
-              </span>
-              <b>Super Admin</b>
-            </div>
-
-            <div className="sa-system-row">
-              <span>
-                <Settings size={17} />
-                Website settings API
-              </span>
-              <b>Available when API responds</b>
-            </div>
-
-            <a
-              className="sa-link"
-              href={`${API}/api/health`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open API health endpoint
-              <ExternalLink size={14} />
+            <a href={`${API}/api/health`} target="_blank" rel="noreferrer"
+              style={{ color: '#d4af37', display: 'inline-block', marginTop: 20 }}>
+              Open API Health <ExternalLink size={14} />
             </a>
+          </section>
+        )}
 
-            <button
-              className="sa-primary"
-              onClick={loadHealth}
-            >
-              <RefreshCw size={16} />
-              Check services again
-            </button>
+        {section === 'future' && (
+          <section style={panelStyle}>
+            <SectionTitle
+              title="Future Integrations & Expansion"
+              description="Planned platform modules. These are roadmap items, not active integrations."
+            />
 
-            <p className="sa-muted">
-              Backup automation, multi-factor authentication,
-              provider integrations and advanced audit monitoring
-              must be configured before they can be reported as enabled.
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))',
+              gap: 12
+            }}>
+              {[
+                ['Payment Gateways', 'bKash, Nagad, Rocket, SSLCommerz and subscription billing', CreditCard],
+                ['Ad Networks', 'Adsterra API, impression tracking, click reports and revenue sync', Megaphone],
+                ['Video Providers', 'Cloudflare Stream, Bunny Stream, storage and transcoding', Film],
+                ['AI Services', 'AI recommendations, metadata tools, translation and moderation', Activity],
+                ['Email & Notifications', 'Transactional email, OTP, push and in-app notifications', Bell],
+                ['Cloud Storage', 'Object storage, upload limits, CDN and media backups', HardDrive],
+                ['Analytics', 'Traffic analytics, watch time, retention and conversion reports', BarChart3],
+                ['Security', 'MFA, login history, device sessions and audit logs', ShieldCheck],
+                ['Website CMS', 'Visual page builder, SEO, custom pages and scheduled publishing', FileText],
+                ['Community', 'Dubbing teams, applications, creator profiles and moderation', MessageSquare],
+                ['Localization', 'Bangla, English, Japanese and additional language support', Globe],
+                ['Automation', 'Scheduled jobs, reports, alerts and service monitoring', Clock]
+              ].map(([title, description, Icon]) => {
+                const ItemIcon = Icon as typeof LayoutDashboard;
+                return (
+                  <div key={String(title)} style={{
+                    border: '1px solid #333',
+                    background: '#191920',
+                    borderRadius: 12,
+                    padding: 17
+                  }}>
+                    <ItemIcon size={22} color="#d4af37" />
+                    <b style={{ display: 'block', marginTop: 10 }}>{String(title)}</b>
+                    <p style={{ color: '#999', fontSize: 12, lineHeight: 1.6 }}>{String(description)}</p>
+                    <Status value="PLANNED" />
+                  </div>
+                );
+              })}
+            </div>
+
+            <p style={{ color: '#888', lineHeight: 1.7, marginTop: 22 }}>
+              Future modules will need their own database migrations, backend API routes,
+              provider credentials and security permissions before they can be activated.
+              No provider connection or automated revenue collection is assumed to be enabled.
             </p>
           </section>
         )}
 
-        <footer className="sa-footer">
-          Anime Hub Bangla · Super Admin Control Center
+        <footer style={{
+          color: '#666',
+          borderTop: '1px solid #292933',
+          paddingTop: 18,
+          marginTop: 35,
+          fontSize: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap'
+        }}>
+          <span>Anime Hub Bangla · Super Admin Control Center</span>
+          <span>Platform management workspace</span>
         </footer>
       </main>
+
+      <style>{`
+        @media(max-width:900px) {
+          .sa-sidebar-responsive {
+            transform: translateX(-100%);
+            transition: transform .2s ease;
+          }
+          .sa-sidebar-responsive[style*="translateX(0)"] {
+            transform: translateX(0) !important;
+          }
+          .sa-main-responsive {
+            margin-left: 0 !important;
+            width: 100%;
+          }
+          .sa-mobile-menu {
+            display: inline-flex !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
