@@ -11,11 +11,9 @@ import adminRoutes from './routes/admin-routes.js';
 import userRoutes from './routes/user-routes.js';
 import collaborationRoutes from './routes/collaboration-routes.js';
 import partnerRoutes from './routes/partner-routes.js';
-const app = express();
+import cmsRoutes from './routes/cms-routes.js';
 
-// ==========================================
-// MIDDLEWARE
-// ==========================================
+const app = express();
 
 const allowedOrigins = new Set([
   'https://anime-hub-bangla-two.vercel.app',
@@ -39,19 +37,15 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
-// ==========================================
 // API ROUTES
-// ==========================================
-
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/collaboration', partnerRoutes);
-// ==========================================
-// HEALTH CHECK
-// ==========================================
+app.use('/api/cms', cmsRoutes);
 
+// HEALTH CHECK
 app.get('/api/health', async (_req, res) => {
   let database = 'not_configured';
 
@@ -73,15 +67,10 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-// ==========================================
 // PUBLIC ANIME CATALOGUE
-// ==========================================
-
 app.get('/api/anime', async (_req, res) => {
   if (!pool) {
-    return res.status(503).json({
-      error: 'Database not configured'
-    });
+    return res.status(503).json({ error: 'Database not configured' });
   }
 
   try {
@@ -100,10 +89,8 @@ app.get('/api/anime', async (_req, res) => {
           ARRAY[]::varchar[]
         ) AS genres
       FROM public.anime a
-      LEFT JOIN public.anime_genres ag
-        ON ag.anime_id = a.id
-      LEFT JOIN public.genres g
-        ON g.id = ag.genre_id
+      LEFT JOIN public.anime_genres ag ON ag.anime_id = a.id
+      LEFT JOIN public.genres g ON g.id = ag.genre_id
       WHERE a.is_published = true
       GROUP BY a.id
       ORDER BY a.created_at DESC
@@ -113,22 +100,14 @@ app.get('/api/anime', async (_req, res) => {
     res.json({ data: result.rows });
   } catch (error) {
     console.error('Anime list failed:', error);
-
-    res.status(500).json({
-      error: 'Could not load catalogue'
-    });
+    res.status(500).json({ error: 'Could not load catalogue' });
   }
 });
 
-// ==========================================
 // ANIME DETAILS + EPISODES
-// ==========================================
-
 app.get('/api/anime/:slug', async (req, res) => {
   if (!pool) {
-    return res.status(503).json({
-      error: 'Database not configured'
-    });
+    return res.status(503).json({ error: 'Database not configured' });
   }
 
   try {
@@ -149,20 +128,15 @@ app.get('/api/anime/:slug', async (req, res) => {
           ARRAY[]::varchar[]
         ) AS genres
       FROM public.anime a
-      LEFT JOIN public.anime_genres ag
-        ON ag.anime_id = a.id
-      LEFT JOIN public.genres g
-        ON g.id = ag.genre_id
-      WHERE a.slug = $1
-        AND a.is_published = true
+      LEFT JOIN public.anime_genres ag ON ag.anime_id = a.id
+      LEFT JOIN public.genres g ON g.id = ag.genre_id
+      WHERE a.slug = $1 AND a.is_published = true
       GROUP BY a.id
       LIMIT 1
     `, [req.params.slug]);
 
     if (!anime.rowCount) {
-      return res.status(404).json({
-        error: 'Anime not found'
-      });
+      return res.status(404).json({ error: 'Anime not found' });
     }
 
     const episodes = await pool.query(`
@@ -189,22 +163,14 @@ app.get('/api/anime/:slug', async (req, res) => {
     });
   } catch (error) {
     console.error('Anime details failed:', error);
-
-    res.status(500).json({
-      error: 'Could not load anime details'
-    });
+    res.status(500).json({ error: 'Could not load anime details' });
   }
 });
 
-// ==========================================
 // EPISODE PLAYBACK AUTHORIZATION
-// ==========================================
-
 app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
   if (!pool) {
-    return res.status(503).json({
-      error: 'Database not configured'
-    });
+    return res.status(503).json({ error: 'Database not configured' });
   }
 
   try {
@@ -221,9 +187,7 @@ app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
     `, [req.params.id]);
 
     if (!result.rowCount) {
-      return res.status(404).json({
-        error: 'Episode not found'
-      });
+      return res.status(404).json({ error: 'Episode not found' });
     }
 
     const episode = result.rows[0];
@@ -253,23 +217,14 @@ app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
     }
 
     res.setHeader('Cache-Control', 'private, no-store');
-
-    res.json({
-      data: episode
-    });
+    res.json({ data: episode });
   } catch (error) {
     console.error('Playback authorization failed:', error);
-
-    res.status(500).json({
-      error: 'Could not authorize playback'
-    });
+    res.status(500).json({ error: 'Could not authorize playback' });
   }
 });
 
-// ==========================================
 // SERVER
-// ==========================================
-
 const port = Number(process.env.PORT || 4000);
 
 app.listen(port, '0.0.0.0', () => {
