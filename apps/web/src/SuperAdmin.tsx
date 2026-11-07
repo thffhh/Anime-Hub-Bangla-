@@ -1196,7 +1196,7 @@ export default function SuperAdmin() {
                     <StatCard
                       label="Total Plays"
                       value={analytics.totals?.plays ?? 0}
-                      icon={PlayIconPlaceholder}
+                      icon={Activity}}
                     />
                     <StatCard
                       label="Completions"
