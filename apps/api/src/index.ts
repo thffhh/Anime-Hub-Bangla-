@@ -17,8 +17,24 @@ const app = express();
 // MIDDLEWARE
 // ==========================================
 
+const allowedOrigins = new Set([
+  'https://anime-hub-bangla-two.vercel.app',
+  'http://localhost:5173',
+  ...(process.env.WEB_ORIGIN || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+]);
+
 app.use(cors({
-  origin: process.env.WEB_ORIGIN?.split(',') || 'http://localhost:5173'
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn('Blocked CORS origin:', origin);
+    return callback(null, false);
+  }
 }));
 
 app.use(express.json({ limit: '1mb' }));
