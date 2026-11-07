@@ -1068,7 +1068,9 @@ export default function SuperAdmin() {
               title="Collaboration & Partner Network"
               description="Manage public partner organizations, dubbing teams, animation studios and media partners."
             />
-            <PartnerManagement token={token} />
+            
+<PartnerManagement />
+            
           </section>
         )}
 
