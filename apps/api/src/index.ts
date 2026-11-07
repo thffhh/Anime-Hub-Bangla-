@@ -2,13 +2,20 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+
 import { pool } from './db.js';
+import { optionalAuth } from './auth.js';
+
 import authRoutes from './routes/auth-routes.js';
 import adminRoutes from './routes/admin-routes.js';
 import userRoutes from './routes/user-routes.js';
-import { optionalAuth } from './auth.js';
+import collaborationRoutes from './routes/collaboration-routes.js';
 
 const app = express();
+
+// ==========================================
+// MIDDLEWARE
+// ==========================================
 
 app.use(cors({
   origin: process.env.WEB_ORIGIN?.split(',') || 'http://localhost:5173'
@@ -16,9 +23,18 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
+// ==========================================
+// API ROUTES
+// ==========================================
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/collaboration', collaborationRoutes);
+
+// ==========================================
+// HEALTH CHECK
+// ==========================================
 
 app.get('/api/health', async (_req, res) => {
   let database = 'not_configured';
@@ -27,7 +43,8 @@ app.get('/api/health', async (_req, res) => {
     try {
       await pool.query('SELECT 1');
       database = 'connected';
-    } catch {
+    } catch (error) {
+      console.error('Database health check failed:', error);
       database = 'error';
     }
   }
@@ -40,7 +57,10 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-// Anime catalogue
+// ==========================================
+// PUBLIC ANIME CATALOGUE
+// ==========================================
+
 app.get('/api/anime', async (_req, res) => {
   if (!pool) {
     return res.status(503).json({
@@ -75,8 +95,8 @@ app.get('/api/anime', async (_req, res) => {
     `);
 
     res.json({ data: result.rows });
-  } catch (err) {
-    console.error('anime list failed', err);
+  } catch (error) {
+    console.error('Anime list failed:', error);
 
     res.status(500).json({
       error: 'Could not load catalogue'
@@ -84,7 +104,10 @@ app.get('/api/anime', async (_req, res) => {
   }
 });
 
-// Anime details
+// ==========================================
+// ANIME DETAILS + EPISODES
+// ==========================================
+
 app.get('/api/anime/:slug', async (req, res) => {
   if (!pool) {
     return res.status(503).json({
@@ -148,8 +171,8 @@ app.get('/api/anime/:slug', async (req, res) => {
         episodes: episodes.rows
       }
     });
-  } catch (err) {
-    console.error('anime details failed', err);
+  } catch (error) {
+    console.error('Anime details failed:', error);
 
     res.status(500).json({
       error: 'Could not load anime details'
@@ -157,7 +180,10 @@ app.get('/api/anime/:slug', async (req, res) => {
   }
 });
 
-// Episode playback authorization
+// ==========================================
+// EPISODE PLAYBACK AUTHORIZATION
+// ==========================================
+
 app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
   if (!pool) {
     return res.status(503).json({
@@ -195,7 +221,7 @@ app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
 
       const membership = await pool.query(`
         SELECT 1
-        FROM memberships
+        FROM public.memberships
         WHERE user_id = $1
           AND status = 'ACTIVE'
           AND plan IN ('MONTHLY', 'YEARLY')
@@ -211,9 +237,12 @@ app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
     }
 
     res.setHeader('Cache-Control', 'private, no-store');
-    res.json({ data: episode });
-  } catch (err) {
-    console.error('playback authorization failed', err);
+
+    res.json({
+      data: episode
+    });
+  } catch (error) {
+    console.error('Playback authorization failed:', error);
 
     res.status(500).json({
       error: 'Could not authorize playback'
@@ -221,15 +250,12 @@ app.get('/api/episodes/:id/playback', optionalAuth, async (req, res) => {
   }
 });
 
-// Admin system status
-app.get('/api/admin/system-status', (_req, res) => {
-  res.status(501).json({
-    error: 'Admin authentication is not configured yet. See docs/SECURITY.md.'
-  });
-});
+// ==========================================
+// SERVER
+// ==========================================
 
 const port = Number(process.env.PORT || 4000);
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Anime Hub API listening on ${port}`);
+  console.log(`Anime Hub API listening on port ${port}`);
 });
