@@ -1,4 +1,3 @@
-
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db.js';
@@ -154,7 +153,7 @@ router.get('/summary', requireRoles(
   }
 });
 
-// Get anime list - FIXED FOR NEON DATABASE
+// Anime list
 router.get('/anime', requireRoles(...contentRoles, 'ANALYST'), async (_req, res) => {
   if (!pool) return res.status(503).json({ error: 'Database not configured' });
 
@@ -192,7 +191,7 @@ router.get('/anime', requireRoles(...contentRoles, 'ANALYST'), async (_req, res)
   }
 });
 
-// Create anime - FIXED
+// Create anime
 router.post('/anime', requireRoles(...contentRoles), async (req, res) => {
   const parsed = animeSchema.safeParse(req.body);
 
@@ -213,15 +212,9 @@ router.post('/anime', requireRoles(...contentRoles), async (req, res) => {
 
     const result = await client.query(`
       INSERT INTO public.anime (
-        slug,
-        title,
-        original_title,
-        synopsis,
-        poster_url,
-        banner_url,
-        release_year,
-        status,
-        is_published
+        slug, title, original_title, synopsis,
+        poster_url, banner_url, release_year,
+        status, is_published
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING id, slug, title, is_published AS published
@@ -240,7 +233,6 @@ router.post('/anime', requireRoles(...contentRoles), async (req, res) => {
     await saveGenres(client, result.rows[0].id, a.genres);
 
     await client.query('COMMIT');
-
     res.status(201).json({ data: result.rows[0] });
   } catch (error: any) {
     await client.query('ROLLBACK');
@@ -256,7 +248,7 @@ router.post('/anime', requireRoles(...contentRoles), async (req, res) => {
   }
 });
 
-// Update anime - FIXED
+// Update anime
 router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
   const parsed = animeSchema.partial().safeParse(req.body);
 
@@ -270,6 +262,7 @@ router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Database not configured' });
 
   const a = parsed.data;
+  const animeId = String(req.params.id);
   const client = await pool.connect();
 
   try {
@@ -290,7 +283,7 @@ router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
       WHERE id = $1
       RETURNING id, slug, title, is_published AS published
     `, [
-      req.params.id,
+      animeId,
       a.slug ?? null,
       a.title ?? null,
       a.originalTitle ?? null,
@@ -308,11 +301,10 @@ router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
     }
 
     if (a.genres !== undefined) {
-      await saveGenres(client, req.params.id, a.genres);
+      await saveGenres(client, animeId, a.genres);
     }
 
     await client.query('COMMIT');
-
     res.json({ data: result.rows[0] });
   } catch (error: any) {
     await client.query('ROLLBACK');
@@ -335,7 +327,7 @@ router.delete('/anime/:id', requireRoles('SUPER_ADMIN', 'ADMIN'), async (req, re
   try {
     const result = await pool.query(
       'DELETE FROM public.anime WHERE id = $1 RETURNING id',
-      [req.params.id]
+      [String(req.params.id)]
     );
 
     if (!result.rowCount) {
@@ -356,7 +348,7 @@ router.get('/anime/:id/episodes', requireRoles(...contentRoles, 'ANALYST'), asyn
   try {
     const result = await pool.query(
       'SELECT * FROM public.episodes WHERE anime_id = $1 ORDER BY episode_number',
-      [req.params.id]
+      [String(req.params.id)]
     );
 
     res.json({ data: result.rows });
@@ -384,22 +376,14 @@ router.post('/anime/:id/episodes', requireRoles(...contentRoles), async (req, re
   try {
     const result = await pool.query(`
       INSERT INTO public.episodes (
-        anime_id,
-        episode_number,
-        title,
-        synopsis,
-        runtime_seconds,
-        thumbnail_url,
-        video_provider,
-        provider_video_id,
-        published,
-        is_premium,
-        release_at
+        anime_id, episode_number, title, synopsis,
+        runtime_seconds, thumbnail_url, video_provider,
+        provider_video_id, published, is_premium, release_at
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
     `, [
-      req.params.id,
+      String(req.params.id),
       e.episodeNumber,
       e.title,
       e.synopsis ?? null,
@@ -454,7 +438,7 @@ router.put('/episodes/:id', requireRoles(...contentRoles), async (req, res) => {
       WHERE id = $1
       RETURNING *
     `, [
-      req.params.id,
+      String(req.params.id),
       e.episodeNumber ?? null,
       e.title ?? null,
       e.synopsis ?? null,
@@ -489,7 +473,7 @@ router.delete('/episodes/:id', requireRoles(
   try {
     const result = await pool.query(
       'DELETE FROM public.episodes WHERE id = $1 RETURNING id',
-      [req.params.id]
+      [String(req.params.id)]
     );
 
     if (!result.rowCount) {
@@ -573,12 +557,14 @@ router.post('/payments/:id/review', requireRoles('SUPER_ADMIN', 'ADMIN'), async 
   try {
     await client.query('BEGIN');
 
+    const paymentId = String(req.params.id);
+
     const found = await client.query(`
       SELECT id, user_id, membership_id, plan, status
       FROM public.payment_submissions
       WHERE id = $1
       FOR UPDATE
-    `, [req.params.id]);
+    `, [paymentId]);
 
     if (!found.rowCount) {
       await client.query('ROLLBACK');
@@ -600,7 +586,7 @@ router.post('/payments/:id/review', requireRoles('SUPER_ADMIN', 'ADMIN'), async 
       UPDATE public.payment_submissions
       SET status = $2, reviewed_by = $3, reviewed_at = now(), admin_note = $4
       WHERE id = $1
-    `, [req.params.id, status, auth.userId, parsed.data.note || null]);
+    `, [paymentId, status, auth.userId, parsed.data.note || null]);
 
     if (approved) {
       await client.query(`
@@ -643,12 +629,11 @@ router.post('/payments/:id/review', requireRoles('SUPER_ADMIN', 'ADMIN'), async 
     `, [
       auth.userId,
       `PAYMENT_${status}`,
-      req.params.id,
+      paymentId,
       JSON.stringify({ membershipId: payment.membership_id })
     ]);
 
     await client.query('COMMIT');
-
     res.json({ ok: true, status, membershipActivated: approved });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -832,7 +817,11 @@ router.patch('/campaigns/:id', requireRoles('SUPER_ADMIN', 'ADMIN', 'ADVERTISEME
       SET status = COALESCE($2, status), notes = COALESCE($3, notes)
       WHERE id = $1
       RETURNING id, status
-    `, [req.params.id, parsed.data.status ?? null, parsed.data.notes ?? null]);
+    `, [
+      String(req.params.id),
+      parsed.data.status ?? null,
+      parsed.data.notes ?? null
+    ]);
 
     if (!result.rowCount) return res.status(404).json({ error: 'Campaign not found' });
 
@@ -925,7 +914,11 @@ router.patch('/sponsors/:id', requireRoles('SUPER_ADMIN', 'ADMIN', 'COLLABORATIO
         updated_at = now()
       WHERE id = $1
       RETURNING id, status
-    `, [req.params.id, parsed.data.status ?? null, parsed.data.notes ?? null]);
+    `, [
+      String(req.params.id),
+      parsed.data.status ?? null,
+      parsed.data.notes ?? null
+    ]);
 
     if (!result.rowCount) return res.status(404).json({ error: 'Sponsor not found' });
 
@@ -1048,7 +1041,7 @@ router.patch('/staff/:id', requireRoles('SUPER_ADMIN'), async (req, res) => {
       WHERE id = $1 AND role <> 'SUPER_ADMIN'
       RETURNING id, email, role, status
     `, [
-      req.params.id,
+      String(req.params.id),
       parsed.data.role ?? null,
       parsed.data.status ?? null
     ]);
@@ -1115,7 +1108,7 @@ router.patch('/moderation/comments/:id', requireRoles('SUPER_ADMIN', 'ADMIN', 'M
       SET status = $2, updated_at = now()
       WHERE id = $1
       RETURNING id, user_id, status
-    `, [req.params.id, parsed.data.status]);
+    `, [String(req.params.id), parsed.data.status]);
 
     if (!result.rowCount) return res.status(404).json({ error: 'Comment not found' });
 
@@ -1154,7 +1147,7 @@ router.patch('/moderation/reports/:id', requireRoles('SUPER_ADMIN', 'ADMIN', 'MO
       SET status = $2, reviewed_by = $3, reviewed_at = now()
       WHERE id = $1 AND status = 'OPEN'
       RETURNING id, status
-    `, [req.params.id, parsed.data.status, auth.userId]);
+    `, [String(req.params.id), parsed.data.status, auth.userId]);
 
     if (!result.rowCount) return res.status(404).json({ error: 'Open report not found' });
 
