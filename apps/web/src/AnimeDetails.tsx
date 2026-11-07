@@ -1,19 +1,12 @@
 
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Hls from 'hls.js';
 import {
-  ArrowLeft,
-  Play,
-  Film,
-  AlertCircle,
-  Heart
+  ArrowLeft, Play, Film, AlertCircle, Heart, Star,
+  MessageCircle, Clock3, RefreshCw
 } from 'lucide-react';
 
-const API = (
-  import.meta.env.VITE_API_URL ||
-  'https://anime-hub-bangla.onrender.com'
-).replace(/\/$/, '');
+const API = (import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com').replace(/\/$/, '');
 
 type Episode = {
   id: string;
@@ -22,8 +15,6 @@ type Episode = {
   synopsis?: string | null;
   runtimeSeconds?: number | null;
   thumbnailUrl?: string | null;
-  videoProvider?: string | null;
-  providerVideoId?: string | null;
   isPremium?: boolean;
 };
 
@@ -42,126 +33,120 @@ type Anime = {
 };
 
 type PlaybackSource = {
-  videoProvider?: string;
-  providerVideoId?: string;
+  videoProvider: string;
+  providerVideoId: string;
 };
 
-function mapEpisode(ep: any): Episode {
+type Review = {
+  id: string;
+  score: number;
+  review: string;
+  spoiler?: boolean;
+  createdAt: string;
+  displayName: string;
+};
+
+type Comment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  displayName: string;
+};
+
+function getToken() {
+  return localStorage.getItem('ahb_token') || localStorage.getItem('ahb_user_token');
+}
+
+function mapEpisode(raw: any): Episode {
   return {
-    id: String(ep.id ?? ''),
-    episodeNumber: Number(ep.episode_number ?? ep.episodeNumber ?? 0),
-    title: ep.title ?? 'Untitled Episode',
-    synopsis: ep.synopsis ?? null,
-    runtimeSeconds: ep.runtime_seconds ?? ep.runtimeSeconds ?? null,
-    thumbnailUrl: ep.thumbnail_url ?? ep.thumbnailUrl ?? null,
-    videoProvider: ep.video_provider ?? ep.videoProvider ?? null,
-    providerVideoId: ep.provider_video_id ?? ep.providerVideoId ?? null,
-    isPremium: Boolean(ep.is_premium ?? ep.isPremium ?? false)
+    id: String(raw.id || ''),
+    episodeNumber: Number(raw.episode_number ?? raw.episodeNumber ?? 0),
+    title: raw.title || 'Untitled Episode',
+    synopsis: raw.synopsis ?? null,
+    runtimeSeconds: raw.runtime_seconds ?? raw.runtimeSeconds ?? null,
+    thumbnailUrl: raw.thumbnail_url ?? raw.thumbnailUrl ?? null,
+    isPremium: Boolean(raw.is_premium ?? raw.isPremium)
   };
 }
 
 function mapAnime(raw: any): Anime {
   return {
-    id: String(raw.id ?? ''),
-    slug: raw.slug ?? '',
-    title: raw.title ?? 'Untitled Anime',
+    id: String(raw.id || ''),
+    slug: raw.slug || '',
+    title: raw.title || 'Untitled Anime',
     originalTitle: raw.original_title ?? raw.originalTitle ?? null,
     synopsis: raw.synopsis ?? raw.description ?? null,
     posterUrl: raw.poster_url ?? raw.posterUrl ?? null,
     bannerUrl: raw.banner_url ?? raw.bannerUrl ?? null,
     releaseYear: raw.release_year ?? raw.releaseYear ?? null,
-    status: raw.status ?? 'UNKNOWN',
+    status: raw.status || 'UNKNOWN',
     genres: Array.isArray(raw.genres)
-      ? raw.genres.map((g: any) =>
-          typeof g === 'string' ? g : g.name
-        ).filter(Boolean)
+      ? raw.genres.map((genre: any) => typeof genre === 'string' ? genre : genre?.name).filter(Boolean)
       : [],
-    episodes: Array.isArray(raw.episodes)
-      ? raw.episodes.map(mapEpisode)
-      : []
+    episodes: Array.isArray(raw.episodes) ? raw.episodes.map(mapEpisode) : []
   };
 }
 
 function Player({ episode }: { episode: Episode }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSaved = useRef(0);
-
   const [source, setSource] = useState<PlaybackSource | null>(null);
   const [loading, setLoading] = useState(true);
-  const [playError, setPlayError] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
 
-    async function loadPlayback() {
-      setSource(null);
-      setPlayError('');
+    async function load() {
       setLoading(true);
+      setError('');
+      setSource(null);
+      lastSaved.current = 0;
 
       try {
-        const token = localStorage.getItem('ahb_token');
+        const token = getToken();
+        const response = await fetch(`${API}/api/episodes/${encodeURIComponent(episode.id)}/playback`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal
+        });
+        const result = await response.json().catch(() => ({}));
 
-        const response = await fetch(
-          `${API}/api/episodes/${encodeURIComponent(episode.id)}/playback`,
-          {
-            headers: token
-              ? { Authorization: `Bearer ${token}` }
-              : {}
-          }
-        );
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Playback unavailable');
-        }
-
-        if (!result.data) {
-          throw new Error('Playback information not found');
-        }
+        if (!response.ok) throw new Error(result.error || 'Playback unavailable');
 
         const data = result.data;
+        if (!data) throw new Error('Playback information was not found.');
 
         if (active) {
           setSource({
-            videoProvider:
-              data.video_provider ?? data.videoProvider ?? '',
-            providerVideoId:
-              data.provider_video_id ?? data.providerVideoId ?? ''
+            videoProvider: String(data.video_provider ?? data.videoProvider ?? '').toLowerCase(),
+            providerVideoId: String(data.provider_video_id ?? data.providerVideoId ?? '')
           });
         }
-      } catch (error) {
-        if (active) {
-          setPlayError(
-            error instanceof Error
-              ? error.message
-              : 'Playback unavailable'
-          );
+      } catch (err) {
+        if (active && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(err instanceof Error ? err.message : 'Playback unavailable');
         }
       } finally {
         if (active) setLoading(false);
       }
     }
 
-    lastSaved.current = 0;
-    loadPlayback();
-
+    void load();
     return () => {
       active = false;
+      controller.abort();
     };
   }, [episode.id]);
 
   const saveProgress = (completed = false) => {
-    const token = localStorage.getItem('ahb_token');
+    const token = getToken();
     const video = videoRef.current;
+    if (!token || !video) return;
 
-    if (!token || !video || !episode.id) return;
-
-    const now = Math.floor(video.currentTime);
-
-    if (!completed && now - lastSaved.current < 15) return;
-
-    lastSaved.current = now;
+    const positionSeconds = Math.floor(video.currentTime);
+    if (!completed && positionSeconds - lastSaved.current < 15) return;
+    lastSaved.current = positionSeconds;
 
     fetch(`${API}/api/user/history`, {
       method: 'PUT',
@@ -169,19 +154,12 @@ function Player({ episode }: { episode: Episode }) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({
-        episodeId: episode.id,
-        positionSeconds: now,
-        completed
-      })
-    }).catch(error => {
-      console.error('Watch history error:', error);
-    });
+      body: JSON.stringify({ episodeId: episode.id, positionSeconds, completed })
+    }).catch(err => console.error('Watch progress could not be saved:', err));
   };
 
-  const provider = (source?.videoProvider || '').toLowerCase();
   const id = source?.providerVideoId || '';
-
+  const provider = source?.videoProvider || '';
   const isHls = /\.m3u8(\?.*)?$/i.test(id);
 
   useEffect(() => {
@@ -195,60 +173,46 @@ function Player({ episode }: { episode: Episode }) {
       return;
     }
 
-    if (Hls.isSupported()) {
-      const hls = new Hls();
-
-      hls.loadSource(id);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          setPlayError('ভিডিও চালাতে সমস্যা হয়েছে। পরে আবার চেষ্টা করো।');
-          hls.destroy();
-        }
-      });
-
-      return () => hls.destroy();
+    if (!Hls.isSupported()) {
+      setError('এই browser HLS video playback support করে না।');
+      return;
     }
 
-    setPlayError('এই Browser HLS video playback support করে না.');
+    const hls = new Hls();
+    hls.loadSource(id);
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (data.fatal) {
+        setError('ভিডিও চালাতে সমস্যা হয়েছে। পরে আবার চেষ্টা করো।');
+        hls.destroy();
+      }
+    });
+
+    return () => hls.destroy();
   }, [id, isHls]);
 
   if (loading) {
-    return (
-      <div className="player-empty">
-        <Film size={30} />
-        <strong>ভিডিও যাচাই হচ্ছে...</strong>
-      </div>
-    );
+    return <div className="player-empty"><RefreshCw className="spin" /><strong>ভিডিও যাচাই হচ্ছে...</strong></div>;
   }
 
-  if (playError) {
+  if (error) {
     return (
       <div className="player-empty">
-        <AlertCircle size={30} />
+        <AlertCircle size={32} />
         <strong>Playback unavailable</strong>
-        <span>{playError}</span>
-
-        {/sign in|premium|unauthorized/i.test(playError) && (
-          <a className="primary" href="/account">
-            Sign in / Premium
-          </a>
-        )}
+        <span>{error}</span>
+        {/sign in|premium|unauthorized|login/i.test(error) && <a className="primary" href="/account">Sign in / Membership</a>}
       </div>
     );
   }
 
-  if (!source) return null;
-
-  if (!id) {
+  if (!source || !id) {
     return (
       <div className="player-empty">
         <Film size={38} />
         <strong>এই Episode-এর ভিডিও এখনো যুক্ত হয়নি</strong>
-        <span>
-          Admin Panel থেকে ভিডিও আপলোড বা Video ID যোগ করতে হবে।
-        </span>
+        <span>Admin Panel থেকে অনুমোদিত ভিডিও source যুক্ত করতে হবে।</span>
       </div>
     );
   }
@@ -259,7 +223,7 @@ function Player({ episode }: { episode: Episode }) {
         <iframe
           src={`https://iframe.videodelivery.net/${encodeURIComponent(id)}`}
           title={episode.title}
-          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
         />
       </div>
@@ -271,15 +235,12 @@ function Player({ episode }: { episode: Episode }) {
       <div className="player-empty">
         <AlertCircle size={30} />
         <strong>Bunny Stream configuration প্রয়োজন</strong>
-        <span>
-          Bunny Library ID এবং playback configuration যুক্ত না হওয়া
-          পর্যন্ত এই ভিডিও চালানো যাবে না।
-        </span>
+        <span>এই provider-এর playback configuration এখনো সম্পূর্ণ নয়।</span>
       </div>
     );
   }
 
-  if (isHls) {
+  if (isHls || (/^https:\/\//i.test(id) && /\.(mp4|webm)(\?.*)?$/i.test(id))) {
     return (
       <div className="video-frame">
         <video
@@ -287,23 +248,7 @@ function Player({ episode }: { episode: Episode }) {
           controls
           playsInline
           preload="metadata"
-          onTimeUpdate={() => saveProgress()}
-          onPause={() => saveProgress()}
-          onEnded={() => saveProgress(true)}
-        />
-      </div>
-    );
-  }
-
-  if (/^https:\/\//i.test(id) && /\.(mp4|webm)(\?.*)?$/i.test(id)) {
-    return (
-      <div className="video-frame">
-        <video
-          ref={videoRef}
-          controls
-          playsInline
-          preload="metadata"
-          src={id}
+          src={isHls ? undefined : id}
           onTimeUpdate={() => saveProgress()}
           onPause={() => saveProgress()}
           onEnded={() => saveProgress(true)}
@@ -329,25 +274,23 @@ function Player({ episode }: { episode: Episode }) {
     <div className="player-empty">
       <AlertCircle size={30} />
       <strong>Unsupported video source</strong>
-      <span>
-        Cloudflare Stream ID অথবা HTTPS video/embed URL ব্যবহার করো।
-      </span>
+      <span>Cloudflare Stream ID অথবা HTTPS video/embed URL ব্যবহার করো।</span>
     </div>
   );
 }
 
 function Community({ animeId }: { animeId: string }) {
-  const [comments, setComments] = useState<any[]>([]);
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [comment, setComment] = useState('');
   const [review, setReview] = useState('');
   const [score, setScore] = useState('10');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
   async function load() {
     setLoading(true);
-
     try {
       const [commentResponse, reviewResponse] = await Promise.all([
         fetch(`${API}/api/user/comments/${encodeURIComponent(animeId)}`),
@@ -359,194 +302,148 @@ function Community({ animeId }: { animeId: string }) {
         reviewResponse.json()
       ]);
 
-      setComments(
-        commentResponse.ok && Array.isArray(commentData.data)
-          ? commentData.data
-          : []
-      );
-
-      setReviews(
-        reviewResponse.ok && Array.isArray(reviewData.data)
-          ? reviewData.data
-          : []
-      );
-    } catch (error) {
-      console.error('Community loading error:', error);
+      setComments(commentResponse.ok && Array.isArray(commentData.data) ? commentData.data : []);
+      setReviews(reviewResponse.ok && Array.isArray(reviewData.data) ? reviewData.data : []);
+    } catch {
+      setNotice('Community information could not be loaded.');
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, [animeId]);
 
-  async function submitComment(e: FormEvent) {
-    e.preventDefault();
-
-    const token = localStorage.getItem('ahb_token');
-
+  async function submitComment(event: FormEvent) {
+    event.preventDefault();
+    const token = getToken();
     if (!token) {
       window.location.href = '/account';
       return;
     }
 
+    setSending(true);
+    setNotice('');
     try {
-      const response = await fetch(
-        `${API}/api/user/comments/${encodeURIComponent(animeId)}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ body: comment })
-        }
-      );
-
+      const response = await fetch(`${API}/api/user/comments/${encodeURIComponent(animeId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: comment })
+      });
       const data = await response.json();
-
-      setNotice(data.message || data.error || 'Comment submitted');
-
-      if (response.ok) {
-        setComment('');
-        await load();
-      }
-    } catch {
-      setNotice('Comment পাঠানো যায়নি। আবার চেষ্টা করো।');
+      if (!response.ok) throw new Error(data.error || 'Comment could not be submitted.');
+      setNotice(data.message || 'Comment submitted.');
+      setComment('');
+      await load();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Comment could not be submitted.');
+    } finally {
+      setSending(false);
     }
   }
 
-  async function submitReview(e: FormEvent) {
-    e.preventDefault();
-
-    const token = localStorage.getItem('ahb_token');
-
+  async function submitReview(event: FormEvent) {
+    event.preventDefault();
+    const token = getToken();
     if (!token) {
       window.location.href = '/account';
       return;
     }
 
+    setSending(true);
+    setNotice('');
     try {
-      const response = await fetch(
-        `${API}/api/user/reviews/${encodeURIComponent(animeId)}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            score: Number(score),
-            review
-          })
-        }
-      );
-
+      const response = await fetch(`${API}/api/user/reviews/${encodeURIComponent(animeId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ score: Number(score), review })
+      });
       const data = await response.json();
-
-      setNotice(data.message || data.error || 'Review submitted');
-
-      if (response.ok) {
-        setReview('');
-        await load();
-      }
-    } catch {
-      setNotice('Review পাঠানো যায়নি। আবার চেষ্টা করো।');
+      if (!response.ok) throw new Error(data.error || 'Review could not be submitted.');
+      setNotice('Your review has been saved.');
+      setReview('');
+      await load();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Review could not be submitted.');
+    } finally {
+      setSending(false);
     }
   }
+
+  const average = reviews.length
+    ? (reviews.reduce((sum, item) => sum + Number(item.score || 0), 0) / reviews.length).toFixed(1)
+    : '—';
 
   return (
     <section className="community-panel">
-      <h2>Community</h2>
-
-      <div className="community-columns">
-
-        <div>
-          <h3>Rate & Review</h3>
-
-          <form onSubmit={submitReview}>
-            <label>
-              Score
-              <select
-                value={score}
-                onChange={e => setScore(e.target.value)}
-              >
-                {Array.from({ length: 10 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {i + 1}/10
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <textarea
-              value={review}
-              onChange={e => setReview(e.target.value)}
-              maxLength={2000}
-              placeholder="Write your review (optional)"
-            />
-
-            <button type="submit">Submit Review</button>
-          </form>
-
-          {reviews.map(r => (
-            <article className="community-item" key={r.id}>
-              <b>{r.displayName || 'User'} · {r.score}/10</b>
-              <p>{r.review}</p>
-            </article>
-          ))}
-        </div>
-
-        <div>
-          <h3>Comments</h3>
-
-          <form onSubmit={submitComment}>
-            <textarea
-              required
-              minLength={2}
-              maxLength={2000}
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              placeholder="Share your thoughts"
-            />
-
-            <button type="submit">Post Comment</button>
-          </form>
-
-          {comments.map(c => (
-            <article className="community-item" key={c.id}>
-              <b>{c.displayName || 'User'}</b>
-              <p>{c.body}</p>
-            </article>
-          ))}
-        </div>
-
+      <div className="community-heading">
+        <div><span className="eyebrow">ANIME HUB COMMUNITY</span><h2>Community & Reviews</h2></div>
+        <span className="community-average"><Star size={15} fill="currentColor" /> {average}/10</span>
       </div>
 
-      {loading && <small>Loading community...</small>}
+      <div className="community-columns">
+        <div className="community-form-column">
+          <h3>Rate & Review</h3>
+          <form onSubmit={submitReview}>
+            <label>Rating
+              <select value={score} onChange={event => setScore(event.target.value)}>
+                {Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} / 10</option>)}
+              </select>
+            </label>
+            <textarea value={review} onChange={event => setReview(event.target.value)} maxLength={2000} placeholder="Share your review (optional)" />
+            <button type="submit" disabled={sending}>{sending ? 'Submitting…' : 'Submit review'}</button>
+          </form>
+          <div className="community-feed">
+            {reviews.map(item => (
+              <article className="community-item" key={item.id}>
+                <div className="community-item-top"><b>{item.displayName || 'Anime fan'}</b><span><Star size={12} fill="currentColor" /> {item.score}/10</span></div>
+                {item.review && <p>{item.review}</p>}
+                <small>{new Date(item.createdAt).toLocaleDateString()}</small>
+              </article>
+            ))}
+            {!loading && !reviews.length && <p className="muted">No reviews yet. Be the first to review.</p>}
+          </div>
+        </div>
 
-      {notice && (
-        <small className="favorite-message">{notice}</small>
-      )}
+        <div className="community-form-column">
+          <h3><MessageCircle size={17} /> Comments</h3>
+          <form onSubmit={submitComment}>
+            <textarea required minLength={2} maxLength={2000} value={comment} onChange={event => setComment(event.target.value)} placeholder="Share your thoughts…" />
+            <button type="submit" disabled={sending}>{sending ? 'Posting…' : 'Post comment'}</button>
+          </form>
+          <div className="community-feed">
+            {comments.map(item => (
+              <article className="community-item" key={item.id}>
+                <b>{item.displayName || 'Anime fan'}</b>
+                <p>{item.body}</p>
+                <small>{new Date(item.createdAt).toLocaleDateString()}</small>
+              </article>
+            ))}
+            {!loading && !comments.length && <p className="muted">No comments yet. Start the conversation.</p>}
+          </div>
+        </div>
+      </div>
+
+      {loading && <small className="community-loading">Loading community…</small>}
+      {notice && <div className="favorite-message">{notice}</div>}
     </section>
   );
 }
 
 export default function AnimeDetails() {
-  const slug = decodeURIComponent(
-    window.location.pathname.split('/').filter(Boolean)[1] || ''
-  );
-
+  const slug = decodeURIComponent(window.location.pathname.split('/').filter(Boolean)[1] || '');
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selected, setSelected] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [favorite, setFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [favoriteMessage, setFavoriteMessage] = useState('');
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
 
     async function loadAnime() {
       setLoading(true);
@@ -555,333 +452,151 @@ export default function AnimeDetails() {
       setSelected(null);
 
       try {
-        const response = await fetch(
-          `${API}/api/anime/${encodeURIComponent(slug)}`
-        );
-
+        const response = await fetch(`${API}/api/anime/${encodeURIComponent(slug)}`, { signal: controller.signal });
         const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Could not load anime');
-        }
-
-        if (!result.data) {
-          throw new Error('Anime not found');
-        }
+        if (!response.ok) throw new Error(result.error || 'Could not load anime.');
+        if (!result.data) throw new Error('Anime not found.');
 
         const mapped = mapAnime(result.data);
-
-        if (!mapped.id) {
-          throw new Error('Invalid anime information');
-        }
-
+        if (!mapped.id) throw new Error('Anime information is incomplete.');
         if (!active) return;
 
         setAnime(mapped);
         setSelected(mapped.episodes[0] || null);
 
-        const token = localStorage.getItem('ahb_token');
-
+        const token = getToken();
         if (token) {
           try {
-            const favResponse = await fetch(
-              `${API}/api/user/favorites`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`
-                }
-              }
-            );
-
+            const favResponse = await fetch(`${API}/api/user/favorites`, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: controller.signal
+            });
             const favData = await favResponse.json();
-
             if (active && favResponse.ok) {
-              setFavorite(
-                (favData.data || []).some(
-                  (item: any) =>
-                    item.id === mapped.id ||
-                    item.animeId === mapped.id ||
-                    item.anime_id === mapped.id
-                )
-              );
+              setFavorite((favData.data || []).some((item: any) => item.id === mapped.id));
             }
-          } catch (error) {
-            console.error('Favorite loading error:', error);
+          } catch (err) {
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+              console.error('Could not load favorites:', err);
+            }
           }
         }
-      } catch (error) {
-        if (active) {
-          setError(
-            error instanceof Error
-              ? error.message
-              : 'Could not load anime'
-          );
+      } catch (err) {
+        if (active && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(err instanceof Error ? err.message : 'Could not load anime.');
         }
       } finally {
         if (active) setLoading(false);
       }
     }
 
-    loadAnime();
-
+    void loadAnime();
     return () => {
       active = false;
+      controller.abort();
     };
   }, [slug]);
 
   async function toggleFavorite() {
-    if (!anime) return;
-
-    const token = localStorage.getItem('ahb_token');
+    if (!anime || favoriteLoading) return;
+    const token = getToken();
 
     if (!token) {
       window.location.href = '/account';
       return;
     }
 
+    setFavoriteLoading(true);
+    setFavoriteMessage('');
+
     try {
-      const response = await fetch(
-        `${API}/api/user/favorites/${encodeURIComponent(anime.id)}`,
-        {
-          method: favorite ? 'DELETE' : 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Favorite update failed');
-      }
+      const response = await fetch(`${API}/api/user/favorites/${encodeURIComponent(anime.id)}`, {
+        method: favorite ? 'DELETE' : 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not update favorites.');
 
       setFavorite(!favorite);
-
-      setFavoriteMessage(
-        favorite
-          ? 'Removed from favorites'
-          : 'Added to favorites'
-      );
-    } catch (error) {
-      setFavoriteMessage(
-        error instanceof Error
-          ? error.message
-          : 'Favorite update failed'
-      );
+      setFavoriteMessage(favorite ? 'Removed from your favorites.' : 'Added to your favorites.');
+    } catch (err) {
+      setFavoriteMessage(err instanceof Error ? err.message : 'Could not update favorites.');
+    } finally {
+      setFavoriteLoading(false);
     }
   }
 
   return (
     <div className="detail-page">
-
       <header className="detail-top">
-
-        <a className="brand" href="/">
-          <span className="brandmark">AH</span>
-          <span>ANIME HUB <b>BANGLA</b></span>
-        </a>
-
-        <a className="back-link" href="/account">
-          My Account
-        </a>
-
-        <a className="back-link" href="/">
-          <ArrowLeft size={16} />
-          Back to Anime
-        </a>
-
+        <a className="brand" href="/"><span className="brandmark">AH</span><span>ANIME HUB <b>BANGLA</b></span></a>
+        <nav><a className="back-link" href="/account">My Account</a><a className="back-link" href="/"><ArrowLeft size={16} /> Back to Anime</a></nav>
       </header>
 
       {loading ? (
-        <div className="detail-message">
-          Loading anime...
-        </div>
+        <div className="detail-message"><RefreshCw className="spin" /> Loading anime…</div>
       ) : error ? (
-        <div className="detail-message error">
-          {error}
-          <p><a href="/">Return home</a></p>
-        </div>
+        <div className="detail-message error">{error}<p><a href="/">Return home</a></p></div>
       ) : anime ? (
         <>
-
-          <section
-            className="detail-hero"
-            style={
-              anime.bannerUrl
-                ? {
-                    backgroundImage:
-                      `linear-gradient(90deg,rgba(7,8,12,.98),rgba(7,8,12,.65)),url("${anime.bannerUrl}")`
-                  }
-                : {}
-            }
-          >
-
+          <section className="detail-hero" style={anime.bannerUrl ? { backgroundImage: `linear-gradient(90deg,rgba(7,8,12,.98),rgba(7,8,12,.65)),url("${anime.bannerUrl}")` } : {}}>
             <div className="detail-poster">
-              {anime.posterUrl ? (
-                <img src={anime.posterUrl} alt={anime.title} />
-              ) : (
-                <Film size={48} />
-              )}
+              {anime.posterUrl ? <img src={anime.posterUrl} alt={anime.title} /> : <Film size={48} />}
             </div>
 
             <div className="detail-copy">
-
-              <div className="eyebrow">
-                BANGLA DUBBED ANIME
-              </div>
-
+              <div className="eyebrow">ANIME HUB BANGLA</div>
               <h1>{anime.title}</h1>
-
-              {anime.originalTitle && (
-                <p className="original-title">
-                  {anime.originalTitle}
-                </p>
-              )}
-
+              {anime.originalTitle && <p className="original-title">{anime.originalTitle}</p>}
               <div className="detail-meta">
-                {anime.releaseYear || '—'}
-                <span>•</span>
-                {anime.status}
-                <span>•</span>
-                {anime.episodes.length} Episodes
+                {anime.releaseYear || 'Year unavailable'} <span>•</span> {anime.status} <span>•</span> {anime.episodes.length} Episodes
               </div>
+              <div className="genre-tags">{anime.genres.map(genre => <span key={genre}>{genre}</span>)}</div>
 
-              <div className="genre-tags">
-                {anime.genres.map(genre => (
-                  <span key={genre}>{genre}</span>
-                ))}
-              </div>
-
-              <button
-                className={`favorite-button ${favorite ? 'saved' : ''}`}
-                onClick={toggleFavorite}
-              >
-                <Heart
-                  size={16}
-                  fill={favorite ? 'currentColor' : 'none'}
-                />
-                {favorite ? 'Saved' : 'Add to favorites'}
+              <button className={`favorite-button ${favorite ? 'saved' : ''}`} onClick={() => void toggleFavorite()} disabled={favoriteLoading}>
+                <Heart size={16} fill={favorite ? 'currentColor' : 'none'} />
+                {favoriteLoading ? 'Saving…' : favorite ? 'Saved to favorites' : 'Add to favorites'}
               </button>
-
-              {favoriteMessage && (
-                <small className="favorite-message">
-                  {favoriteMessage}
-                </small>
-              )}
-
-              <p>
-                {anime.synopsis ||
-                  'এই anime-এর synopsis এখনো যোগ করা হয়নি।'}
-              </p>
-
+              {favoriteMessage && <small className="favorite-message">{favoriteMessage}</small>}
+              <p>{anime.synopsis || 'এই anime-এর synopsis এখনো যোগ করা হয়নি।'}</p>
             </div>
           </section>
 
           <main className="watch-layout">
-
             <section className="watch-main">
-
               <div className="watch-heading">
-                <div>
-                  <div className="eyebrow">NOW WATCHING</div>
-
-                  <h2>
-                    {selected
-                      ? `Episode ${selected.episodeNumber}: ${selected.title}`
-                      : 'Episodes coming soon'}
-                  </h2>
-                </div>
+                <div><div className="eyebrow">NOW WATCHING</div><h2>{selected ? `Episode ${selected.episodeNumber}: ${selected.title}` : 'Episodes coming soon'}</h2></div>
               </div>
 
-              {selected ? (
-                <Player episode={selected} />
-              ) : (
-                <div className="player-empty">
-                  <Film size={38} />
-                  <strong>কোনো Published Episode নেই</strong>
-                  <span>
-                    Admin Panel থেকে episode publish করো।
-                  </span>
-                </div>
+              {selected ? <Player episode={selected} /> : (
+                <div className="player-empty"><Film size={38} /><strong>কোনো Published Episode নেই</strong><span>Admin Panel থেকে episode publish করতে হবে।</span></div>
               )}
 
-              <p className="rights-note">
-                শুধু অনুমোদিত ও লাইসেন্সকৃত কনটেন্ট দেখানো হবে।
-              </p>
-
-              {selected?.synopsis && (
-                <p className="episode-synopsis">
-                  {selected.synopsis}
-                </p>
-              )}
-
+              <p className="rights-note">শুধু অনুমোদিত ও লাইসেন্সকৃত কনটেন্ট দেখানো হবে।</p>
+              {selected?.synopsis && <p className="episode-synopsis">{selected.synopsis}</p>}
             </section>
 
             <aside className="episode-sidebar">
-
-              <h3>
-                Episodes <span>{anime.episodes.length}</span>
-              </h3>
-
-              {anime.episodes.length ? (
-                anime.episodes.map(ep => (
-                  <button
-                    key={ep.id}
-                    className={`public-episode ${
-                      selected?.id === ep.id ? 'active' : ''
-                    }`}
-                    onClick={() => setSelected(ep)}
-                  >
-
-                    <span className="ep-thumb">
-                      {ep.thumbnailUrl ? (
-                        <img src={ep.thumbnailUrl} alt="" />
-                      ) : (
-                        <Play size={17} />
-                      )}
-                    </span>
-
-                    <span>
-                      <b>
-                        EP {String(ep.episodeNumber).padStart(2, '0')}
-                      </b>
-
-                      <small>{ep.title}</small>
-
-                      {ep.isPremium && (
-                        <small>PREMIUM</small>
-                      )}
-
-                      {ep.runtimeSeconds && (
-                        <small>
-                          {Math.round(ep.runtimeSeconds / 60)} min
-                        </small>
-                      )}
-                    </span>
-
-                  </button>
-                ))
-              ) : (
-                <p className="muted">
-                  Episodes are not available yet.
-                </p>
-              )}
-
+              <h3>Episodes <span>{anime.episodes.length}</span></h3>
+              {anime.episodes.length ? anime.episodes.map(episode => (
+                <button key={episode.id} className={`public-episode ${selected?.id === episode.id ? 'active' : ''}`} onClick={() => setSelected(episode)}>
+                  <span className="ep-thumb">{episode.thumbnailUrl ? <img src={episode.thumbnailUrl} alt="" /> : <Play size={17} />}</span>
+                  <span>
+                    <b>EP {String(episode.episodeNumber).padStart(2, '0')}</b>
+                    <small>{episode.title}</small>
+                    {episode.isPremium && <small className="premium-label">PREMIUM</small>}
+                    {episode.runtimeSeconds && <small><Clock3 size={11} /> {Math.round(episode.runtimeSeconds / 60)} min</small>}
+                  </span>
+                </button>
+              )) : <p className="muted">Episodes are not available yet.</p>}
             </aside>
-
           </main>
 
           <Community animeId={anime.id} />
-
         </>
       ) : null}
 
-      <footer className="detail-footer">
-        © {new Date().getFullYear()} Anime Hub Bangla ·
-        Content rights belong to their respective owners.
-      </footer>
-
+      <footer className="detail-footer">© {new Date().getFullYear()} Anime Hub Bangla · Content rights belong to their respective owners.</footer>
     </div>
   );
 }
