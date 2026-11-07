@@ -1,9 +1,19 @@
 
 import { useEffect, useState } from 'react';
 import {
-  Search, Play, Menu, X, Shield, Film, Tv,
-  Star, ChevronRight, Users, Mic2, Info,
-  Clapperboard, Globe, Mail
+  Search,
+  Play,
+  Menu,
+  X,
+  Shield,
+  Film,
+  Tv,
+  Star,
+  ChevronRight,
+  Users,
+  Mic2,
+  Info,
+  Clapperboard
 } from 'lucide-react';
 
 import Admin from './Admin';
@@ -58,32 +68,60 @@ const fallback: Anime[] = [
 function Home() {
   const [items, setItems] = useState<Anime[]>(fallback);
   const [query, setQuery] = useState('');
-  const [apiState, setApiState] = useState('Checking API…');
+  const [apiState, setApiState] = useState('Checking API...');
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    fetch(`${API}/api/anime`)
-      .then(response => {
+    async function loadAnime() {
+      try {
+        const response = await fetch(`${API}/api/anime`);
+
         if (!response.ok) {
-          throw new Error('API request failed');
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (!active) return;
-
-        if (Array.isArray(data.data)) {
-          setItems(data.data);
+          throw new Error(`API request failed: ${response.status}`);
         }
 
-        setApiState('API connected');
-      })
-      .catch(() => {
+        const result = await response.json();
+
         if (!active) return;
-        setApiState('Demo catalogue — API not connected');
-      });
+
+        if (!Array.isArray(result.data)) {
+          throw new Error('Invalid anime catalogue response');
+        }
+
+        const mappedAnime: Anime[] = result.data.map((anime: any) => ({
+          id: String(anime.id),
+          slug: anime.slug,
+          title: anime.title,
+          synopsis: anime.synopsis ?? anime.description ?? '',
+          posterUrl: anime.poster_url ?? anime.posterUrl ?? '',
+          releaseYear: anime.release_year ?? anime.releaseYear,
+          status: anime.status ?? 'ONGOING',
+          genres: Array.isArray(anime.genres)
+            ? anime.genres.map((genre: any) =>
+                typeof genre === 'string' ? genre : genre.name
+              ).filter(Boolean)
+            : []
+        }));
+
+        setItems(mappedAnime);
+
+        setApiState(
+          mappedAnime.length > 0
+            ? 'API connected'
+            : 'API connected — no anime published yet'
+        );
+      } catch (error) {
+        if (!active) return;
+
+        console.error('Anime API error:', error);
+        setItems(fallback);
+        setApiState('Demo catalogue — API unavailable');
+      }
+    }
+
+    loadAnime();
 
     return () => {
       active = false;
@@ -144,7 +182,7 @@ function Home() {
           <button
             className="mobile"
             type="button"
-            aria-label="Open navigation menu"
+            aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
           >
@@ -165,6 +203,7 @@ function Home() {
               {link.label}
             </a>
           ))}
+
           <a href="/account" onClick={closeMenu}>
             Sign in / Join
           </a>
@@ -282,7 +321,7 @@ function Home() {
 
                 <p>
                   {anime.releaseYear || 'New'} ·{' '}
-                  {anime.genres?.slice(0, 2).join(' / ')}
+                  {anime.genres.slice(0, 2).join(' / ')}
                 </p>
 
               </a>
@@ -415,8 +454,8 @@ function Home() {
           <h2>Privacy</h2>
           <p>
             Account and personal information should be handled
-            securely. See the platform's published privacy policy
-            for complete details.
+            securely. A complete privacy policy must be published
+            before public launch.
           </p>
         </section>
 
@@ -427,7 +466,7 @@ function Home() {
           <h2>Terms of Service</h2>
           <p>
             Users must respect content rights and platform rules.
-            Complete terms will be published before public launch.
+            Complete terms must be published before public launch.
           </p>
         </section>
 
