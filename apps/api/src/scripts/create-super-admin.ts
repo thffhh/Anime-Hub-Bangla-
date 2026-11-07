@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -15,46 +14,68 @@ async function main() {
     throw new Error('DATABASE_URL is required');
   }
 
-  const parsed = schema.safeParse({
-    email: process.env.SUPER_ADMIN_EMAIL,
-    password: process.env.SUPER_ADMIN_PASSWORD,
-    displayName: process.env.SUPER_ADMIN_NAME || 'Tanvir Ahmed'
-  });
+  try {
+    const parsed = schema.safeParse({
+      email: process.env.SUPER_ADMIN_EMAIL,
+      password: process.env.SUPER_ADMIN_PASSWORD,
+      displayName: process.env.SUPER_ADMIN_NAME || 'Tanvir Ahmed'
+    });
 
-  if (!parsed.success) {
-    throw new Error(
-      'Set SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD (minimum 12 characters).'
+    if (!parsed.success) {
+      throw new Error(
+        'Invalid configuration. Check SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD.'
+      );
+    }
+
+    const { email, password, displayName } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check whether this email already exists
+    const emailCheck = await pool.query(
+      'SELECT id FROM users WHERE email = $1 LIMIT 1',
+      [normalizedEmail]
     );
-  }
 
-  const { email, password, displayName } = parsed.data;
+    if (emailCheck.rowCount) {
+      throw new Error('This email already exists in the users table.');
+    }
 
-  const existing = await pool.query(
-    'SELECT id FROM users WHERE role = $1 LIMIT 1',
-    ['SUPER_ADMIN']
-  );
-
-  if (existing.rowCount) {
-    throw new Error(
-      'A Super Admin already exists. Refusing to create another account.'
+    // Check whether a Super Admin already exists
+    const adminCheck = await pool.query(
+      "SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1"
     );
+
+    if (adminCheck.rowCount) {
+      throw new Error('A Super Admin already exists. Bootstrap stopped.');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Insert account with both name columns
+    await pool.query(
+      `INSERT INTO public.users
+        (email, password_hash, name, display_name, role, status)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        normalizedEmail,
+        passwordHash,
+        displayName,
+        displayName,
+        'SUPER_ADMIN',
+        'ACTIVE'
+      ]
+    );
+
+    console.log('SUCCESS: Super Admin account created.');
+    console.log('Email:', normalizedEmail);
+    console.log('Name:', displayName);
+  } finally {
+    await pool.end();
   }
-
-  const hash = await bcrypt.hash(password, 12);
-
-  await pool.query(
-    `INSERT INTO users
-      (email, password_hash, name, display_name, role, status)
-     VALUES ($1, $2, $3, $3, 'SUPER_ADMIN', 'ACTIVE')`,
-    [email.toLowerCase().trim(), hash, displayName]
-  );
-
-  console.log('Super Admin created successfully!');
-  await pool.end();
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
+  console.error('SUPER ADMIN CREATION FAILED:');
   console.error(error.message || error);
-  if (pool) await pool.end();
-  process.exit(1);
+  process.exitCode = 1;
 });
