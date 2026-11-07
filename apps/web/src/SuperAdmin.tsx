@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 
 import PartnerManagement from './PartnerManagement';
-
+import Admin from './Admin';
 const API = (
   import.meta.env.VITE_API_URL ||
   'https://anime-hub-bangla.onrender.com'
@@ -1509,26 +1509,25 @@ export default function SuperAdmin() {
 
         {/* ANIME & CONTENT */}
 
-        {section === 'content' && (
+                {section === 'content' && (
           <section className="sa-panel">
             <h2>
               <Film />
-              Anime & Content Management
+              Anime, Episodes & Platform Operations
             </h2>
 
             <p>
-              Manage anime, episodes and video operations
-              through the existing Admin Panel.
+              All former Admin Panel tools are now embedded inside this
+              Super Admin Control Center. There is no separate admin workspace.
             </p>
-
-            <a className="sa-link" href="/admin">
-              Open Content Management
-              <ExternalLink size={14} />
-            </a>
 
             <div className="sa-system-row">
               <span>Anime loaded from API</span>
               <b>{anime.length}</b>
+            </div>
+
+            <div className="sa-embedded-admin">
+              <Admin />
             </div>
           </section>
         )}
