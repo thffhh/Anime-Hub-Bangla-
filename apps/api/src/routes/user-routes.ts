@@ -5,24 +5,67 @@ import { pool } from '../db.js';
 import { requireAuth, type AuthRequest } from '../auth.js';
 
 const router = Router();
-const registerSchema = z.object({ email:z.string().email().max(254), password:z.string().min(8).max(200), displayName:z.string().trim().min(2).max(60) });
+const registerSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+  displayName: z.string().trim().min(2).max(60)
+});
 const loginSchema = z.object({ email:z.string().email().max(254), password:z.string().min(1).max(200) });
 const progressSchema = z.object({ episodeId:z.string().uuid(), positionSeconds:z.number().int().min(0), completed:z.boolean().optional().default(false) });
 
-router.post('/register', async (req,res) => {
-  const parsed=registerSchema.safeParse(req.body);
-  if(!parsed.success) return res.status(400).json({error:'Name, valid email and password (at least 8 characters) are required'});
-  if(!pool) return res.status(503).json({error:'Database not configured'});
+
+router.post('/register', async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Name, valid email and password (at least 8 characters) are required'
+    });
+  }
+
+  if (!pool) {
+    return res.status(503).json({
+      error: 'Database not configured'
+    });
+  }
+
   try {
-    const {email,password,displayName}=parsed.data;
-    const hash=await bcrypt.hash(password,12);
-    const result=await pool.query(`INSERT INTO users(email,password_hash,display_name) VALUES($1,$2,$3) RETURNING id,email,display_name AS "displayName",role`,[email.toLowerCase(),hash,displayName]);
-    res.status(201).json({user:result.rows[0],message:'Account created. Please sign in.'});
-  } catch(e:any) {
-    if(e?.code==='23505') return res.status(409).json({error:'An account with this email already exists'});
-    console.error('register error',e); res.status(500).json({error:'Could not create account'});
+    const email = parsed.data.email.toLowerCase().trim();
+    const displayName = parsed.data.displayName.trim();
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+
+    const result = await pool.query(
+      `INSERT INTO public.users
+        (email, password_hash, display_name, role, status)
+       VALUES ($1, $2, $3, 'USER', 'ACTIVE')
+       RETURNING
+        id,
+        email,
+        display_name AS "displayName",
+        role,
+        status`,
+      [email, passwordHash, displayName]
+    );
+
+    return res.status(201).json({
+      user: result.rows[0],
+      message: 'Account created. Please sign in.'
+    });
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      return res.status(409).json({
+        error: 'An account with this email already exists'
+      });
+    }
+
+    console.error('Registration error:', error);
+
+    return res.status(500).json({
+      error: 'Could not create account'
+    });
   }
 });
+
 
 router.get('/me',requireAuth,async(req:AuthRequest,res)=>{
   if(!pool)return res.status(503).json({error:'Database not configured'});
