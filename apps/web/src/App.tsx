@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search,
   Play,
@@ -13,123 +12,187 @@ import {
   Users,
   Mic2,
   Info,
-  Clapperboard
+  Clapperboard,
+  RefreshCw,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
+
 import SuperAdmin from './SuperAdmin';
 import AnimeDetails from './AnimeDetails';
 import Account from './Account';
 
-const API =
+const API = (
   import.meta.env.VITE_API_URL ||
-  'https://anime-hub-bangla.onrender.com';
+  'https://anime-hub-bangla.onrender.com'
+).replace(/\/$/, '');
 
 type Anime = {
   id: string;
   slug: string;
   title: string;
-  synopsis?: string;
-  posterUrl?: string;
+  synopsis: string;
+  posterUrl: string;
   releaseYear?: number;
   status: string;
   genres: string[];
 };
 
-const fallback: Anime[] = [
-  {
-    id: 'demo-1',
-    slug: 'sample-adventure',
-    title: 'Sample Adventure',
-    synopsis: 'Demo content only.',
-    releaseYear: 2026,
-    status: 'ONGOING',
-    genres: ['Adventure', 'Fantasy']
-  },
-  {
-    id: 'demo-2',
-    slug: 'sample-journey',
-    title: 'Sample Journey',
-    synopsis: 'Demo content only.',
-    releaseYear: 2025,
-    status: 'COMPLETED',
-    genres: ['Drama', 'Fantasy']
-  },
-  {
-    id: 'demo-3',
-    slug: 'sample-heroes',
-    title: 'Sample Heroes',
-    synopsis: 'Demo content only.',
-    releaseYear: 2026,
-    status: 'UPCOMING',
-    genres: ['Action']
-  }
-];
+type Partner = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  logoUrl: string;
+  websiteUrl: string;
+  facebookUrl: string;
+  youtubeUrl: string;
+  instagramUrl: string;
+  isFeatured: boolean;
+};
+
+function normalizeAnime(raw: any): Anime {
+  return {
+    id: String(raw.id ?? ''),
+    slug: String(raw.slug ?? ''),
+    title: String(raw.title ?? 'Untitled Anime'),
+    synopsis: String(raw.synopsis ?? raw.description ?? ''),
+    posterUrl: String(raw.poster_url ?? raw.posterUrl ?? ''),
+    releaseYear: raw.release_year ?? raw.releaseYear ?? undefined,
+    status: String(raw.status ?? 'UNKNOWN'),
+    genres: Array.isArray(raw.genres)
+      ? raw.genres
+          .map((genre: any) =>
+            typeof genre === 'string' ? genre : genre?.name
+          )
+          .filter(Boolean)
+      : []
+  };
+}
+
+function normalizePartner(raw: any): Partner {
+  return {
+    id: String(raw.id ?? ''),
+    name: String(raw.name ?? 'Unnamed Partner'),
+    description: String(raw.description ?? ''),
+    category: String(raw.category ?? 'PARTNER'),
+    logoUrl: String(raw.logo_url ?? raw.logoUrl ?? ''),
+    websiteUrl: String(raw.website_url ?? raw.websiteUrl ?? ''),
+    facebookUrl: String(raw.facebook_url ?? raw.facebookUrl ?? ''),
+    youtubeUrl: String(raw.youtube_url ?? raw.youtubeUrl ?? ''),
+    instagramUrl: String(raw.instagram_url ?? raw.instagramUrl ?? ''),
+    isFeatured: Boolean(raw.is_featured ?? raw.isFeatured)
+  };
+}
 
 function Home() {
-  const [items, setItems] = useState<Anime[]>(fallback);
+  const [items, setItems] = useState<Anime[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [query, setQuery] = useState('');
-  const [apiState, setApiState] = useState('Checking API...');
+  const [genre, setGenre] = useState('ALL');
+  const [apiState, setApiState] = useState('Connecting to Anime Hub...');
+  const [loading, setLoading] = useState(true);
+  const [partnerLoading, setPartnerLoading] = useState(true);
+  const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  async function loadAnime(signal?: AbortSignal) {
+    setLoading(true);
+    setError('');
 
-    async function loadAnime() {
-      try {
-        const response = await fetch(`${API}/api/anime`);
+    try {
+      const response = await fetch(`${API}/api/anime`, { signal });
+      const result = await response.json();
 
-        if (!response.ok) {
-          throw new Error(`API request failed: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        if (!active) return;
-
-        if (!Array.isArray(result.data)) {
-          throw new Error('Invalid anime catalogue response');
-        }
-
-        const mappedAnime: Anime[] = result.data.map((anime: any) => ({
-          id: String(anime.id),
-          slug: anime.slug,
-          title: anime.title,
-          synopsis: anime.synopsis ?? anime.description ?? '',
-          posterUrl: anime.poster_url ?? anime.posterUrl ?? '',
-          releaseYear: anime.release_year ?? anime.releaseYear,
-          status: anime.status ?? 'ONGOING',
-          genres: Array.isArray(anime.genres)
-            ? anime.genres.map((genre: any) =>
-                typeof genre === 'string' ? genre : genre.name
-              ).filter(Boolean)
-            : []
-        }));
-
-        setItems(mappedAnime);
-
-        setApiState(
-          mappedAnime.length > 0
-            ? 'API connected'
-            : 'API connected — no anime published yet'
-        );
-      } catch (error) {
-        if (!active) return;
-
-        console.error('Anime API error:', error);
-        setItems(fallback);
-        setApiState('Demo catalogue — API unavailable');
+      if (!response.ok) {
+        throw new Error(result.error || 'Anime catalogue could not load.');
       }
+
+      if (!Array.isArray(result.data)) {
+        throw new Error('Invalid catalogue response from server.');
+      }
+
+      const mapped = result.data
+        .map(normalizeAnime)
+        .filter((anime: Anime) => anime.id && anime.slug);
+
+      setItems(mapped);
+      setApiState(
+        mapped.length > 0
+          ? 'Anime catalogue connected'
+          : 'Connected — no anime published yet'
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+
+      console.error('Anime catalogue error:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not connect to the anime catalogue.'
+      );
+      setApiState('Catalogue connection unavailable');
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadAnime();
+  async function loadPartners(signal?: AbortSignal) {
+    setPartnerLoading(true);
 
-    return () => {
-      active = false;
-    };
+    try {
+      const response = await fetch(
+        `${API}/api/collaboration/partners`,
+        { signal }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !Array.isArray(result.data)) {
+        throw new Error('Partner information unavailable.');
+      }
+
+      setPartners(result.data.map(normalizePartner));
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('Partner loading error:', err);
+      setPartners([]);
+    } finally {
+      setPartnerLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    loadAnime(controller.signal);
+    loadPartners(controller.signal);
+
+    return () => controller.abort();
   }, []);
 
-  const filtered = items.filter(anime =>
-    anime.title.toLowerCase().includes(query.toLowerCase())
-  );
+  const genres = useMemo(() => {
+    const values = items.flatMap(item => item.genres);
+    return ['ALL', ...Array.from(new Set(values)).sort()];
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    const search = query.trim().toLowerCase();
+
+    return items.filter(anime => {
+      const matchesSearch =
+        !search ||
+        anime.title.toLowerCase().includes(search) ||
+        anime.synopsis.toLowerCase().includes(search) ||
+        anime.genres.some(item => item.toLowerCase().includes(search));
+
+      const matchesGenre =
+        genre === 'ALL' || anime.genres.includes(genre);
+
+      return matchesSearch && matchesGenre;
+    });
+  }, [items, query, genre]);
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -142,15 +205,13 @@ function Home() {
 
   return (
     <div className="app">
-
       <header className="top" id="top">
-
         <a className="brand" href="/">
           <span className="brandmark">AH</span>
           <span>ANIME HUB <b>BANGLA</b></span>
         </a>
 
-        <nav>
+        <nav aria-label="Main navigation">
           {navLinks.map(link => (
             <a key={link.href} href={link.href}>
               {link.label}
@@ -159,18 +220,23 @@ function Home() {
         </nav>
 
         <div className="actions">
-
           <label className="search">
             <Search size={17} />
             <input
               value={query}
               onChange={event => {
                 setQuery(event.target.value);
-                document.getElementById('anime')?.scrollIntoView({
-                  behavior: 'smooth'
-                });
+                setGenre('ALL');
               }}
-              placeholder="Search anime"
+              onFocus={() => {
+                if (query) {
+                  document.getElementById('anime')?.scrollIntoView({
+                    behavior: 'smooth'
+                  });
+                }
+              }}
+              placeholder="Search anime..."
+              aria-label="Search anime"
             />
           </label>
 
@@ -181,13 +247,12 @@ function Home() {
           <button
             className="mobile"
             type="button"
-            aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => setMenuOpen(value => !value)}
           >
             {menuOpen ? <X /> : <Menu />}
           </button>
-
         </div>
       </header>
 
@@ -210,15 +275,10 @@ function Home() {
       )}
 
       <main>
-
-        {/* HERO */}
-
         <section className="hero">
-
           <div className="hero-copy">
-
             <div className="eyebrow">
-              <span /> BANGLA DUBBED ANIME UNIVERSE
+              <span /> BANGLA ANIME ENTERTAINMENT PLATFORM
             </div>
 
             <h1>
@@ -228,9 +288,9 @@ function Home() {
             </h1>
 
             <p>
-              Discover anime stories in Bangla. Explore licensed
-              releases, original projects and dubbing studios —
-              all in one place.
+              Discover anime, explore Bangla dubbing projects
+              and connect with creative studios. Your anime
+              community starts here.
             </p>
 
             <div className="hero-buttons">
@@ -239,13 +299,12 @@ function Home() {
                 Explore Anime
               </a>
 
-              <a className="secondary" href="#about">
-                Learn more <ChevronRight size={16} />
+              <a className="secondary" href="#studios">
+                Discover Studios <ChevronRight size={16} />
               </a>
             </div>
 
             <small className="status">{apiState}</small>
-
           </div>
 
           <div className="hero-art">
@@ -258,24 +317,18 @@ function Home() {
             </div>
 
             <div className="floating-tag">
-              বাংলা ডাবড
+              বাংলা অ্যানিমে
             </div>
           </div>
-
         </section>
-
-        {/* TRUST */}
 
         <section className="trust">
-          <div><Shield /> Authorized content first</div>
-          <div><Tv /> Web + Android experience</div>
-          <div><Star /> Community reviews</div>
+          <div><Shield /> Copyright-conscious platform</div>
+          <div><Tv /> Anime discovery experience</div>
+          <div><Star /> Community-driven platform</div>
         </section>
 
-        {/* ANIME */}
-
         <section className="catalog" id="anime">
-
           <div className="section-head">
             <div>
               <div className="eyebrow">EXPLORE THE LIBRARY</div>
@@ -288,56 +341,131 @@ function Home() {
             </span>
           </div>
 
-          <div className="cards">
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 12,
+              marginBottom: 28
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: '#aaa',
+                fontSize: 12
+              }}
+            >
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Find anime by title or genre"
+                style={{
+                  width: 'min(320px, 75vw)',
+                  padding: '12px 14px',
+                  color: '#fff',
+                  background: '#14151b',
+                  border: '1px solid #34343d',
+                  borderRadius: 8,
+                  outline: 'none'
+                }}
+              />
+            </label>
 
-            {filtered.map(anime => (
-              <a
-                className="anime-card"
-                key={anime.id}
-                href={`/anime/${encodeURIComponent(anime.slug)}`}
-              >
-
-                <div className="poster">
-
-                  {anime.posterUrl ? (
-                    <img src={anime.posterUrl} alt={anime.title} />
-                  ) : (
-                    <div className="poster-placeholder">
-                      <Film size={34} />
-                      <span>ANIME HUB</span>
-                    </div>
-                  )}
-
-                  <span className="type">{anime.status}</span>
-
-                  <span className="card-play">
-                    <Play size={18} fill="currentColor" />
-                  </span>
-
-                </div>
-
-                <h3>{anime.title}</h3>
-
-                <p>
-                  {anime.releaseYear || 'New'} ·{' '}
-                  {anime.genres.slice(0, 2).join(' / ')}
-                </p>
-
-              </a>
-            ))}
-
+            <select
+              value={genre}
+              onChange={event => setGenre(event.target.value)}
+              aria-label="Filter by genre"
+              style={{
+                padding: '12px 14px',
+                color: '#eee',
+                background: '#14151b',
+                border: '1px solid #34343d',
+                borderRadius: 8
+              }}
+            >
+              {genres.map(item => (
+                <option key={item} value={item}>
+                  {item === 'ALL' ? 'All genres' : item}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {filtered.length === 0 && (
-            <p className="empty">No titles found.</p>
-          )}
+          {loading ? (
+            <div className="empty">
+              Loading anime catalogue...
+            </div>
+          ) : error ? (
+            <div className="feature-panel">
+              <div className="feature-icon">
+                <Film size={28} />
+              </div>
+              <strong>Catalogue unavailable</strong>
+              <span>{error}</span>
+              <button
+                className="primary"
+                type="button"
+                onClick={() => loadAnime()}
+                style={{ marginTop: 20, border: 0 }}
+              >
+                <RefreshCw size={15} />
+                Try again
+              </button>
+            </div>
+          ) : filtered.length > 0 ? (
+            <div className="cards">
+              {filtered.map(anime => (
+                <a
+                  className="anime-card"
+                  key={anime.id}
+                  href={`/anime/${encodeURIComponent(anime.slug)}`}
+                >
+                  <div className="poster">
+                    {anime.posterUrl ? (
+                      <img
+                        src={anime.posterUrl}
+                        alt={`${anime.title} poster`}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="poster-placeholder">
+                        <Film size={34} />
+                        <span>ANIME HUB</span>
+                      </div>
+                    )}
 
+                    <span className="type">{anime.status}</span>
+
+                    <span className="card-play">
+                      <Play size={18} fill="currentColor" />
+                    </span>
+                  </div>
+
+                  <h3>{anime.title}</h3>
+
+                  <p>
+                    {anime.releaseYear || 'Year not set'}
+                    {anime.genres.length > 0
+                      ? ` · ${anime.genres.slice(0, 2).join(' / ')}`
+                      : ''}
+                  </p>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">
+              {items.length === 0
+                ? 'No anime has been published yet.'
+                : 'No anime matches your search.'}
+            </div>
+          )}
         </section>
 
-        {/* MOVIES */}
-
         <section className="catalog" id="movies">
-
           <div className="section-head">
             <div>
               <div className="eyebrow">FEATURE FILMS</div>
@@ -353,19 +481,15 @@ function Home() {
             <strong>Anime Movies Library</strong>
 
             <span>
-              Authorized Bangla-dubbed anime movies will
-              appear here when movie catalogue support is configured.
+              The movie catalogue will appear here when
+              movie management and publishing are available.
             </span>
           </div>
-
         </section>
 
-        {/* STUDIOS */}
-
         <section className="feature" id="studios">
-
           <div>
-            <div className="eyebrow">BUILT FOR THE COMMUNITY</div>
+            <div className="eyebrow">THE CREATIVE COMMUNITY</div>
 
             <h2>
               One hub for
@@ -374,18 +498,17 @@ function Home() {
             </h2>
 
             <p>
-              Discover dubbing studios, voice artists and
-              creative teams. Build connections with the
-              Bangla anime dubbing community.
+              Discover dubbing teams, voice artists, animation
+              studios and creative partners working around
+              Bangla anime entertainment.
             </p>
 
-            <a className="secondary" href="#about">
-              About our platform <ChevronRight size={16} />
+            <a className="secondary" href="#partners">
+              Explore our partners <ChevronRight size={16} />
             </a>
           </div>
 
           <div className="feature-panel">
-
             <div className="feature-icon">
               <Mic2 size={32} />
             </div>
@@ -393,41 +516,143 @@ function Home() {
             <strong>Bangla Dubbing Network</strong>
 
             <span>
-              Studios · Voice Artists · Originals · Partners
+              Dubbing Studios · Voice Artists · Animation Teams
             </span>
 
             <div className="bars">
               <i /><i /><i /><i /><i /><i />
               <i /><i /><i /><i /><i /><i />
             </div>
-
           </div>
-
         </section>
 
-        {/* ABOUT */}
-
-        <section className="catalog" id="about">
-
+        <section className="catalog" id="partners">
           <div className="section-head">
             <div>
-              <div className="eyebrow">ABOUT US</div>
+              <div className="eyebrow">OUR NETWORK</div>
+              <h2>Collaboration <em>Partners</em></h2>
+            </div>
+
+            <span>{partners.length} partners</span>
+          </div>
+
+          {partnerLoading ? (
+            <p className="empty">Loading collaboration partners...</p>
+          ) : partners.length === 0 ? (
+            <div className="feature-panel">
+              <div className="feature-icon">
+                <Users size={30} />
+              </div>
+              <strong>Our partner network is growing</strong>
+              <span>
+                Published collaboration partners will appear here.
+              </span>
+            </div>
+          ) : (
+            <div className="cards">
+              {partners.map(partner => (
+                <article
+                  className="feature-panel"
+                  key={partner.id}
+                  style={{ minWidth: 0, margin: 0 }}
+                >
+                  <div
+                    style={{
+                      width: 76,
+                      height: 76,
+                      borderRadius: 14,
+                      overflow: 'hidden',
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: '#25232a',
+                      border: '1px solid #d4af3744',
+                      marginBottom: 20
+                    }}
+                  >
+                    {partner.logoUrl ? (
+                      <img
+                        src={partner.logoUrl}
+                        alt={`${partner.name} logo`}
+                        loading="lazy"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <Users size={30} />
+                    )}
+                  </div>
+
+                  <small className="eyebrow">
+                    {partner.category.replace(/_/g, ' ')}
+                  </small>
+
+                  <strong>{partner.name}</strong>
+
+                  <span>{partner.description}</span>
+
+                  {partner.websiteUrl && (
+                    <a
+                      href={partner.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="secondary"
+                      style={{ marginTop: 18 }}
+                    >
+                      Visit website <ExternalLink size={14} />
+                    </a>
+                  )}
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                      marginTop: 15,
+                      fontSize: 12
+                    }}
+                  >
+                    {partner.facebookUrl && (
+                      <a href={partner.facebookUrl} target="_blank" rel="noopener noreferrer">
+                        Facebook
+                      </a>
+                    )}
+                    {partner.youtubeUrl && (
+                      <a href={partner.youtubeUrl} target="_blank" rel="noopener noreferrer">
+                        YouTube
+                      </a>
+                    )}
+                    {partner.instagramUrl && (
+                      <a href={partner.instagramUrl} target="_blank" rel="noopener noreferrer">
+                        Instagram
+                      </a>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="catalog" id="about">
+          <div className="section-head">
+            <div>
+              <div className="eyebrow">ABOUT THE PLATFORM</div>
               <h2>Welcome to <em>Anime Hub Bangla</em></h2>
             </div>
           </div>
 
           <div className="community-panel">
-
             <div className="community-columns">
-
               <div>
                 <Info size={28} />
                 <h3>Our Platform</h3>
                 <p>
-                  Anime Hub Bangla is designed to bring
-                  Bangla-dubbed anime, authorized releases,
-                  original projects and dubbing communities
-                  together in one platform.
+                  Anime Hub Bangla brings anime discovery,
+                  Bangla dubbing communities, creative studios
+                  and authorized releases together in one place.
                 </p>
               </div>
 
@@ -435,58 +660,46 @@ function Home() {
                 <Users size={28} />
                 <h3>Our Community</h3>
                 <p>
-                  A place for anime fans, dubbing studios,
-                  voice artists and creative teams to connect.
+                  A place for anime fans, dubbing teams,
+                  voice artists and creative partners to connect
+                  and grow together.
                 </p>
               </div>
-
             </div>
-
           </div>
-
         </section>
-
-        {/* PRIVACY */}
 
         <section className="catalog" id="privacy">
           <div className="eyebrow">YOUR DATA</div>
           <h2>Privacy</h2>
           <p>
-            Account and personal information should be handled
-            securely. A complete privacy policy must be published
-            before public launch.
+            We aim to protect account information and personal
+            data. A complete privacy policy should be published
+            before the platform opens to the public.
           </p>
         </section>
-
-        {/* TERMS */}
 
         <section className="catalog" id="terms">
           <div className="eyebrow">PLATFORM RULES</div>
           <h2>Terms of Service</h2>
           <p>
-            Users must respect content rights and platform rules.
-            Complete terms must be published before public launch.
+            Users must respect content ownership, community
+            guidelines and applicable laws when using the platform.
           </p>
         </section>
-
-        {/* COPYRIGHT */}
 
         <section className="catalog" id="copyright">
           <div className="eyebrow">CONTENT RIGHTS</div>
           <h2>Copyright</h2>
           <p>
-            Content rights belong to their respective owners.
-            Only authorized content should be published on
-            Anime Hub Bangla.
+            Anime Hub Bangla does not claim ownership of third-party
+            anime or media. Content may only be published with
+            appropriate authorization from its rights holders.
           </p>
         </section>
-
       </main>
 
-      {/* FOOTER */}
-
       <footer>
-
         <a className="brand" href="#top">
           <span className="brandmark">AH</span>
           <span>ANIME HUB <b>BANGLA</b></span>
@@ -494,17 +707,16 @@ function Home() {
 
         <span>
           © {new Date().getFullYear()} Anime Hub Bangla.
-          Content rights belong to their respective owners.
+          All rights belong to their respective owners.
         </span>
 
         <span className="footlinks">
           <a href="#privacy">Privacy</a>
           <a href="#terms">Terms</a>
+          <a href="#copyright">Copyright</a>
           <a href="/super-admin">Admin Login</a>
         </span>
-
       </footer>
-
     </div>
   );
 }
@@ -515,6 +727,7 @@ export default function App() {
   if (path.startsWith('/super-admin')) return <SuperAdmin />;
   if (path.startsWith('/admin')) return <SuperAdmin />;
   if (path.startsWith('/account')) return <Account />;
+  if (path.startsWith('/anime/')) return <AnimeDetails />;
 
   return <Home />;
 }
