@@ -1158,4 +1158,135 @@ router.patch('/moderation/reports/:id', requireRoles('SUPER_ADMIN', 'ADMIN', 'MO
   }
 });
 
+// ==========================================
+// WEBSITE SETTINGS - SUPER ADMIN CONTROL
+// ==========================================
+
+const siteSettingsSchema = z.object({
+  siteName: z.string().trim().min(2).max(100).optional(),
+  tagline: z.string().max(200).optional(),
+  announcement: z.string().max(1000).optional(),
+  heroTitle: z.string().max(200).optional(),
+  heroSubtitle: z.string().max(500).optional(),
+  contactEmail: z.union([
+    z.string().email(),
+    z.literal('')
+  ]).optional(),
+  maintenanceMode: z.boolean().optional()
+}).strict();
+
+// Get website settings
+router.get(
+  '/settings',
+  requireRoles('SUPER_ADMIN', 'ADMIN'),
+  async (_req, res) => {
+    if (!pool) {
+      return res.status(503).json({
+        error: 'Database not configured'
+      });
+    }
+
+    try {
+      const result = await pool.query(`
+        SELECT setting_key, setting_value, updated_at
+        FROM public.site_settings
+        ORDER BY setting_key
+      `);
+
+      const settings: Record<string, unknown> = {};
+
+      for (const row of result.rows) {
+        settings[row.setting_key] = row.setting_value;
+      }
+
+      res.json({
+        data: settings,
+        updatedAt: result.rows
+          .map(row => row.updated_at)
+          .filter(Boolean)
+          .sort()
+          .at(-1) ?? null
+      });
+    } catch (error) {
+      console.error('Website settings load failed:', error);
+
+      res.status(500).json({
+        error: 'Could not load website settings'
+      });
+    }
+  }
+);
+
+// Update website settings
+router.put(
+  '/settings',
+  requireRoles('SUPER_ADMIN'),
+  async (req, res) => {
+    const parsed = siteSettingsSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid website settings',
+        details: parsed.error.flatten()
+      });
+    }
+
+    if (!pool) {
+      return res.status(503).json({
+        error: 'Database not configured'
+      });
+    }
+
+    const entries = Object.entries(parsed.data);
+
+    if (entries.length === 0) {
+      return res.status(400).json({
+        error: 'No settings provided'
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      for (const [key, value] of entries) {
+        await client.query(`
+          INSERT INTO public.site_settings (
+            setting_key,
+            setting_value,
+            updated_at
+          )
+          VALUES ($1, $2::jsonb, NOW())
+          ON CONFLICT (setting_key)
+          DO UPDATE SET
+            setting_value = EXCLUDED.setting_value,
+            updated_at = NOW()
+        `, [
+          key,
+          JSON.stringify(value)
+        ]);
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        ok: true,
+        message: 'Website settings saved successfully',
+        updated: entries.map(([key]) => key)
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+
+      console.error('Website settings update failed:', error);
+
+      res.status(500).json({
+        error: 'Could not save website settings'
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
+
 export default router;
