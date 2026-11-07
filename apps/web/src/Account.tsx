@@ -49,7 +49,7 @@ export default function Account() {
     try {
       if (mode === 'register') {
         const registerResponse = await fetch(
-          `${API}/api/users/register`,
+          `${API}/api/user/register`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
