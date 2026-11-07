@@ -405,7 +405,7 @@ export default function PartnerManagement({
                     <br />
                     <small>{partner.slug}</small>
                   </td>
-                  <td>{partner.category.replaceAll('_', ' ')}</td>
+                  <td>{partner.category.replace(/_/g, ' ')}</td>
                   <td>{partner.status}</td>
                   <td>{partner.isPublished ? 'Published' : 'Hidden'}</td>
                   <td>{partner.isFeatured ? 'Yes' : 'No'}</td>
