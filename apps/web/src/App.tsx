@@ -15,7 +15,7 @@ import {
   Clapperboard,
   RefreshCw,
   Globe,
-  ExternalLink
+  ExternalLink, ChevronLeft
 } from 'lucide-react';
 
 import SuperAdmin from './SuperAdmin';
@@ -90,9 +90,13 @@ function Home() {
   const [apiState, setApiState] = useState('Connecting to Anime Hub...');
   const [loading, setLoading] = useState(true);
   const [partnerLoading, setPartnerLoading] = useState(true);
+  const [partnerError, setPartnerError] = useState(false);
+  const [covers, setCovers] = useState<{ title: string; imageUrl: string; animeSlug: string; episodeId: string }[]>([]);
+  const [coverIndex, setCoverIndex] = useState(0);
+  const [accentTheme, setAccentTheme] = useState<'peach' | 'violet' | 'mint'>('peach');
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [siteSettings, setSiteSettings] = useState<{ siteName?: string; tagline?: string; heroTitle?: string; heroSubtitle?: string; announcement?: string }>({});
+  const [siteSettings, setSiteSettings] = useState<{ siteName?: string; tagline?: string; heroTitle?: string; heroSubtitle?: string; announcement?: string; contactEmail?: string; showMovies?: boolean; showStudios?: boolean; showPartners?: boolean; showAbout?: boolean }>({});
 
   async function loadAnime(signal?: AbortSignal) {
     setLoading(true);
@@ -138,6 +142,7 @@ function Home() {
 
   async function loadPartners(signal?: AbortSignal) {
     setPartnerLoading(true);
+    setPartnerError(false);
 
     try {
       const response = await fetch(
@@ -155,6 +160,7 @@ function Home() {
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('Partner loading error:', err);
+      setPartnerError(true);
       setPartners([]);
     } finally {
       if (!signal?.aborted) setPartnerLoading(false);
@@ -170,17 +176,35 @@ function Home() {
       .then(response => response.ok ? response.json() : null)
       .then(result => {
         if (result?.settings && typeof result.settings === 'object') {
-          const safeSettings: Record<string, string> = {};
-          for (const key of ['siteName', 'tagline', 'heroTitle', 'heroSubtitle', 'announcement']) {
-            if (typeof result.settings[key] === 'string') safeSettings[key] = result.settings[key];
+          const raw = result.settings;
+          const safeSettings: Record<string, string | boolean> = {};
+          for (const key of ['siteName', 'tagline', 'heroTitle', 'heroSubtitle', 'announcement', 'contactEmail']) {
+            if (typeof raw[key] === 'string') safeSettings[key] = raw[key];
+          }
+          for (const key of ['showMovies', 'showStudios', 'showPartners', 'showAbout']) {
+            if (typeof raw[key] === 'boolean') safeSettings[key] = raw[key];
           }
           setSiteSettings(safeSettings);
+          if (['peach', 'violet', 'mint'].includes(raw.accentTheme)) setAccentTheme(raw.accentTheme);
+          if (Array.isArray(raw.heroCovers)) {
+            setCovers(raw.heroCovers.filter((cover: any) => {
+              if (typeof cover?.title !== 'string' || typeof cover?.animeSlug !== 'string' || !/^[a-z0-9-]+$/.test(cover.animeSlug) || typeof cover?.episodeId !== 'string' || !/^[0-9a-f-]{36}$/i.test(cover.episodeId)) return false;
+              try { return new URL(cover.imageUrl).protocol === 'https:'; } catch { return false; }
+            }).slice(0, 8));
+          }
         }
       })
       .catch(err => { if (err?.name !== 'AbortError') console.warn('Homepage settings unavailable:', err); });
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [menuOpen]);
 
   const genres = useMemo(() => {
     const values = items.flatMap(item => item.genres);
@@ -205,16 +229,18 @@ function Home() {
   }, [items, query, genre]);
 
   const closeMenu = () => setMenuOpen(false);
+  const cover = covers[coverIndex] || null;
+  const coverLink = cover ? `/anime/${encodeURIComponent(cover.animeSlug)}?episode=${encodeURIComponent(cover.episodeId)}#watch` : '';
 
   const navLinks = [
     { label: 'Anime', href: '#anime' },
-    { label: 'Movies', href: '#movies' },
-    { label: 'Studios', href: '#studios' },
-    { label: 'About', href: '#about' }
+    ...(siteSettings.showMovies !== false ? [{ label: 'Movies', href: '#movies' }] : []),
+    ...(siteSettings.showStudios !== false ? [{ label: 'Studios', href: '#studios' }] : []),
+    ...(siteSettings.showAbout !== false ? [{ label: 'About', href: '#about' }] : [])
   ];
 
   return (
-    <div className="app">
+    <div className={`app theme-${accentTheme}`}>
       <header className="top" id="top">
         <a className="brand" href="/">
           <span className="brandmark">AH</span>
@@ -238,6 +264,9 @@ function Home() {
                 setQuery(event.target.value);
                 setGenre('ALL');
               }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') document.getElementById('anime')?.scrollIntoView({ behavior: 'smooth' });
+              }}
               onFocus={() => {
                 if (query) {
                   document.getElementById('anime')?.scrollIntoView({
@@ -259,6 +288,7 @@ function Home() {
             type="button"
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
+            aria-controls="mobile-navigation"
             onClick={() => setMenuOpen(value => !value)}
           >
             {menuOpen ? <X /> : <Menu />}
@@ -267,7 +297,11 @@ function Home() {
       </header>
 
       {menuOpen && (
-        <div className="mobile-navigation">
+        <div id="mobile-navigation" className="mobile-navigation">
+          <form className="mobile-search" onSubmit={event => { event.preventDefault(); closeMenu(); document.getElementById('anime')?.scrollIntoView({ behavior: 'smooth' }); }}>
+            <label className="search"><Search size={17} /><input aria-label="Search anime" placeholder="Search anime..." value={query} onChange={event => { setQuery(event.target.value); setGenre('ALL'); }} /></label>
+            <button type="submit">Search</button>
+          </form>
           {navLinks.map(link => (
             <a
               key={link.href}
@@ -286,14 +320,15 @@ function Home() {
 
       <main>
         {siteSettings.announcement && <div className="site-announcement" role="status">{siteSettings.announcement}</div>}
-        <section className="hero">
+        <section className={`hero ${cover ? 'has-cover' : ''}`} style={cover ? { backgroundImage: `linear-gradient(90deg, rgba(12,15,29,.97) 0%, rgba(12,15,29,.85) 36%, rgba(12,15,29,.18) 100%), url(${JSON.stringify(cover.imageUrl)})` } : undefined}>
+          {cover && <a className="hero-cover-link" href={coverLink} aria-label={`Watch ${cover.title}`} />}
           <div className="hero-copy">
             <div className="eyebrow">
               <span /> {siteSettings.tagline || 'BANGLA ANIME ENTERTAINMENT PLATFORM'}
             </div>
 
             <h1>
-              {siteSettings.heroTitle || <>Your Anime.<br /><em>Your Language.</em></>}
+              {cover ? cover.title : (siteSettings.heroTitle || <>Your Anime.<br /><em>Your Language.</em></>)}
             </h1>
 
             <p>
@@ -301,19 +336,20 @@ function Home() {
             </p>
 
             <div className="hero-buttons">
-              <a className="primary" href="#anime">
+              <a className="primary" href={cover ? coverLink : '#anime'}>
                 <Play size={17} fill="currentColor" />
-                Explore Anime
+                {cover ? 'Watch episode' : 'Explore Anime'}
               </a>
 
-              <a className="secondary" href="#studios">
+              {siteSettings.showStudios !== false && <a className="secondary" href="#studios">
                 Discover Studios <ChevronRight size={16} />
-              </a>
+              </a>}
             </div>
 
             <small className="status">{apiState}</small>
           </div>
 
+          {covers.length > 1 && <div className="hero-slide-controls" aria-label="Featured covers"><button type="button" aria-label="Previous cover" onClick={() => setCoverIndex((coverIndex + covers.length - 1) % covers.length)}><ChevronLeft size={18} /></button><span aria-live="polite">{coverIndex + 1} / {covers.length}</span><button type="button" aria-label="Next cover" onClick={() => setCoverIndex((coverIndex + 1) % covers.length)}><ChevronRight size={18} /></button></div>}
           <div className="hero-art" aria-hidden="true">
             <div className="hero-art-caption"><span>STORIES WITHOUT BORDERS</span><strong>একসাথে দেখি,<br />একসাথে স্বপ্ন দেখি।</strong><small>ANIME HUB BANGLA · আপনার নিজের জগৎ</small></div>
           </div>
@@ -455,7 +491,7 @@ function Home() {
           )}
         </section>
 
-        <section className="catalog" id="movies">
+        {siteSettings.showMovies !== false && <section className="catalog" id="movies">
           <div className="section-head">
             <div>
               <div className="eyebrow">02 / FEATURE FILMS</div>
@@ -475,9 +511,9 @@ function Home() {
               movie management and publishing are available.
             </span>
           </div>
-        </section>
+        </section>}
 
-        <section className="feature" id="studios">
+        {siteSettings.showStudios !== false && <section className="feature" id="studios">
           <div>
             <div className="eyebrow">03 / THE CREATIVE COMMUNITY</div>
 
@@ -493,9 +529,9 @@ function Home() {
               Bangla anime entertainment.
             </p>
 
-            <a className="secondary" href="#partners">
+            {siteSettings.showPartners !== false && <a className="secondary" href="#partners">
               Explore our partners <ChevronRight size={16} />
-            </a>
+            </a>}
           </div>
 
           <div className="feature-panel">
@@ -514,9 +550,9 @@ function Home() {
               <i /><i /><i /><i /><i /><i />
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section className="catalog" id="partners">
+        {siteSettings.showPartners !== false && <section className="catalog" id="partners">
           <div className="section-head">
             <div>
               <div className="eyebrow">04 / OUR NETWORK</div>
@@ -528,6 +564,8 @@ function Home() {
 
           {partnerLoading ? (
             <p className="empty">Loading collaboration partners...</p>
+          ) : partnerError ? (
+            <div className="feature-panel"><strong>Partner information is unavailable</strong><span>Please try again.</span><button className="primary retry-partners" onClick={() => void loadPartners()}>Try again</button></div>
           ) : partners.length === 0 ? (
             <div className="feature-panel">
               <div className="feature-icon">
@@ -624,9 +662,9 @@ function Home() {
               ))}
             </div>
           )}
-        </section>
+        </section>}
 
-        <section className="catalog" id="about">
+        {siteSettings.showAbout !== false && <section className="catalog" id="about">
           <div className="section-head">
             <div>
               <div className="eyebrow">ABOUT THE PLATFORM</div>
@@ -657,7 +695,7 @@ function Home() {
               </div>
             </div>
           </div>
-        </section>
+        </section>}
 
         <section className="catalog" id="privacy">
           <div className="eyebrow">YOUR DATA</div>
@@ -704,7 +742,7 @@ function Home() {
           <a href="#privacy">Privacy</a>
           <a href="#terms">Terms</a>
           <a href="#copyright">Copyright</a>
-          <a href="/super-admin">Admin Login</a>
+          {siteSettings.contactEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(siteSettings.contactEmail) && <a href={`mailto:${siteSettings.contactEmail}`}>Contact</a>}
         </span>
       </footer>
     </div>

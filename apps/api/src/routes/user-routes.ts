@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '../db.js';
+import { isBangladeshMobileNumber } from '../payment-settings.js';
 import { requireAuth, type AuthRequest } from '../auth.js';
 
 const router = Router();
@@ -70,7 +71,7 @@ router.post('/register', async (req, res) => {
 router.get('/me',requireAuth,async(req:AuthRequest,res)=>{
   if(!pool)return res.status(503).json({error:'Database not configured'});
   const r=await pool.query(`SELECT id,email,display_name AS "displayName",role,created_at AS "createdAt" FROM users WHERE id=$1`,[req.auth!.userId]);
-  const m=await pool.query(`SELECT plan,status,starts_at AS "startsAt",ends_at AS "endsAt" FROM memberships WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`,[req.auth!.userId]);
+  const m=await pool.query(`SELECT plan,status,starts_at AS "startsAt",ends_at AS "endsAt" FROM memberships WHERE user_id=$1 ORDER BY CASE WHEN status='ACTIVE' AND (ends_at IS NULL OR ends_at > now()) THEN 0 ELSE 1 END, created_at DESC LIMIT 1`,[req.auth!.userId]);
   res.json({user:r.rows[0],membership:m.rows[0]||{plan:'FREE',status:'ACTIVE'}});
 });
 
@@ -97,7 +98,7 @@ router.put('/history',requireAuth,async(req:AuthRequest,res)=>{
 });
 router.delete('/history',requireAuth,async(req:AuthRequest,res)=>{if(!pool)return res.status(503).json({error:'Database not configured'});await pool.query('DELETE FROM watch_progress WHERE user_id=$1',[req.auth!.userId]);res.json({cleared:true});});
 
-router.get('/membership',requireAuth,async(req:AuthRequest,res)=>{if(!pool)return res.status(503).json({error:'Database not configured'});const r=await pool.query(`SELECT plan,status,starts_at AS "startsAt",ends_at AS "endsAt" FROM memberships WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`,[req.auth!.userId]);res.json({membership:r.rows[0]||{plan:'FREE',status:'ACTIVE'}});});
+router.get('/membership',requireAuth,async(req:AuthRequest,res)=>{if(!pool)return res.status(503).json({error:'Database not configured'});const r=await pool.query(`SELECT plan,status,starts_at AS "startsAt",ends_at AS "endsAt" FROM memberships WHERE user_id=$1 ORDER BY CASE WHEN status='ACTIVE' AND (ends_at IS NULL OR ends_at > now()) THEN 0 ELSE 1 END, created_at DESC LIMIT 1`,[req.auth!.userId]);res.json({membership:r.rows[0]||{plan:'FREE',status:'ACTIVE'}});});
 router.post('/membership/request',requireAuth,async(req:AuthRequest,res)=>{
  const p=z.object({
   plan:z.enum(['MONTHLY','YEARLY']),
@@ -107,14 +108,38 @@ router.post('/membership/request',requireAuth,async(req:AuthRequest,res)=>{
  }).safeParse(req.body);
  if(!p.success)return res.status(400).json({error:'Plan, payment method, transaction reference and amount are required'});
  if(!pool)return res.status(503).json({error:'Database not configured'});
+ let client;
  try {
-  const m=await pool.query(`INSERT INTO memberships(user_id,plan,status,payment_method,payment_reference) VALUES($1,$2,'PENDING',$3,$4) RETURNING id,plan,status,created_at AS "createdAt"`,[req.auth!.userId,p.data.plan,p.data.paymentMethod,p.data.transactionReference]);
-  const payment=await pool.query(`INSERT INTO payment_submissions(user_id,membership_id,plan,payment_method,transaction_reference,amount_bdt) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status,created_at AS "createdAt"`,[req.auth!.userId,m.rows[0].id,p.data.plan,p.data.paymentMethod,p.data.transactionReference,p.data.amountBdt]);
+  client = await pool.connect();
+  await client.query('BEGIN');
+  const priceKey = p.data.plan === 'MONTHLY' ? 'monthlyPriceBdt' : 'yearlyPriceBdt';
+  const configured = await client.query('SELECT setting_value FROM site_settings WHERE setting_key=$1', [priceKey]);
+  const price = configured.rows[0]?.setting_value;
+  if (typeof price !== 'number' || !Number.isSafeInteger(price) || price <= 0) {
+   await client.query('ROLLBACK');
+   return res.status(400).json({ error: 'This plan is not currently available.' });
+  }
+  if (p.data.amountBdt !== price) {
+   await client.query('ROLLBACK');
+   return res.status(400).json({ error: 'Amount does not match the current plan price. Please refresh and try again.' });
+  }
+  const methodKey = p.data.paymentMethod === 'BKASH' ? 'bkashNumber' : p.data.paymentMethod === 'NAGAD' ? 'nagadNumber' : 'paymentInstructions';
+  const methodSetting = await client.query('SELECT setting_value FROM site_settings WHERE setting_key=$1', [methodKey]);
+  const methodValue = methodSetting.rows[0]?.setting_value;
+  const methodAvailable = methodKey === 'paymentInstructions' ? typeof methodValue === 'string' && methodValue.trim().length > 0 : isBangladeshMobileNumber(methodValue);
+  if (!methodAvailable) {
+   await client.query('ROLLBACK');
+   return res.status(400).json({ error: 'This payment method is not currently configured.' });
+  }
+  const m=await client.query(`INSERT INTO memberships(user_id,plan,status,payment_method,payment_reference) VALUES($1,$2,'PENDING',$3,$4) RETURNING id,plan,status,created_at AS "createdAt"`,[req.auth!.userId,p.data.plan,p.data.paymentMethod,p.data.transactionReference]);
+  const payment=await client.query(`INSERT INTO payment_submissions(user_id,membership_id,plan,payment_method,transaction_reference,amount_bdt) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status,created_at AS "createdAt"`,[req.auth!.userId,m.rows[0].id,p.data.plan,p.data.paymentMethod,p.data.transactionReference,p.data.amountBdt]);
+  await client.query('COMMIT');
   res.status(202).json({membership:m.rows[0],payment:payment.rows[0],message:'Payment submitted for manual verification. Premium is not active until an admin verifies the transaction.'});
  } catch(e:any) {
+  if (client) await client.query('ROLLBACK').catch(() => {});
   if(e?.code==='23505')return res.status(409).json({error:'This transaction reference has already been submitted'});
   console.error('membership payment submission failed',e);res.status(500).json({error:'Could not submit payment'});
- }
+ } finally { client?.release(); }
 });
 router.post('/playback-event',requireAuth,async(req:AuthRequest,res)=>{
  const p=z.object({episodeId:z.string().uuid(),eventType:z.enum(['PLAY','PROGRESS','COMPLETE']),watchedSeconds:z.number().int().min(0).max(86400).default(0)}).safeParse(req.body);

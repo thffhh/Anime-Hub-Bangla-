@@ -237,3 +237,65 @@ CREATE TABLE IF NOT EXISTS content_reports (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS content_reports_status_idx ON content_reports(status,created_at DESC);
+
+-- Homepage configuration (also available as additive migration 003).
+CREATE TABLE IF NOT EXISTS public.site_settings (
+  setting_key TEXT PRIMARY KEY,
+  setting_value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.cms_homepage_sections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_key TEXT NOT NULL UNIQUE,
+  title TEXT,
+  subtitle TEXT,
+  content JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_enabled BOOLEAN NOT NULL DEFAULT true,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  updated_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.cms_announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  link_url TEXT,
+  starts_at TIMESTAMPTZ,
+  ends_at TIMESTAMPTZ,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Additive tables for the public partner directory and admin audit history.
+BEGIN;
+CREATE TABLE IF NOT EXISTS public.collaboration_partners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  category TEXT NOT NULL DEFAULT 'OTHER',
+  logo_url TEXT,
+  cover_url TEXT,
+  website_url TEXT,
+  facebook_url TEXT,
+  youtube_url TEXT,
+  instagram_url TEXT,
+  other_links JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  is_featured BOOLEAN NOT NULL DEFAULT false,
+  is_published BOOLEAN NOT NULL DEFAULT false,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- partner_id is deliberately not a foreign key: delete events must retain the ID.
+CREATE TABLE IF NOT EXISTS public.collaboration_partner_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  partner_id UUID NOT NULL,
+  actor_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMIT;

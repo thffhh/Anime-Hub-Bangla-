@@ -1,6 +1,11 @@
 import { Router } from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
+import { randomUUID } from 'node:crypto';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { z } from 'zod';
 import { pool } from '../db.js';
+import { isBangladeshMobileNumber } from '../payment-settings.js';
 import { requireAuth, requireRoles } from '../auth.js';
 
 const router = Router();
@@ -69,6 +74,46 @@ async function saveGenres(client: any, animeId: string, genres: string[]) {
     );
   }
 }
+
+// Cover uploads are limited, decoded and re-encoded before being sent to R2.
+// The public base URL must point to a bucket/domain configured by the operator.
+const coverUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0 } }).single('image');
+router.post('/media/cover', requireRoles('SUPER_ADMIN', 'ADMIN'), (req, res) => {
+  const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL } = process.env;
+  let base: URL;
+  try {
+    if (!R2_ACCOUNT_ID || !/^[a-f0-9]{32}$/i.test(R2_ACCOUNT_ID) || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET || !R2_PUBLIC_BASE_URL) throw new Error('Missing configuration');
+    base = new URL(R2_PUBLIC_BASE_URL);
+    if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) throw new Error('Invalid public URL');
+  } catch {
+    return res.status(503).json({ error: 'Cover upload is not configured. Configure R2 and a public HTTPS base URL on the API server.' });
+  }
+  coverUpload(req, res, async err => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5 MB or smaller.' : 'Invalid image upload.' });
+    if (!req.file || !['image/jpeg', 'image/png', 'image/webp'].includes(req.file.mimetype)) {
+      return res.status(400).json({ error: 'Choose a JPEG, PNG or WebP image.' });
+    }
+    let image: Buffer;
+    try {
+      const source = sharp(req.file.buffer, { limitInputPixels: 20_000_000, animated: false });
+      const info = await source.metadata();
+      if (!info.format || !['jpeg', 'png', 'webp'].includes(info.format)) throw new Error('Unsupported image');
+      image = await source.rotate().resize({ width: 2560, height: 2560, fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 }).toBuffer();
+    } catch {
+      return res.status(400).json({ error: 'The image is invalid or too large to process.' });
+    }
+    const key = `covers/${randomUUID()}.webp`;
+    try {
+      const client = new S3Client({ region: 'auto', endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: R2_ACCESS_KEY_ID!, secretAccessKey: R2_SECRET_ACCESS_KEY! } });
+      await client.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: image, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' }));
+      const url = `${base.toString().replace(/\/$/, '')}/${key}`;
+      return res.status(201).json({ url });
+    } catch (error) {
+      console.error('Cover image upload failed:', error);
+      return res.status(502).json({ error: 'Could not upload the image to storage. Check R2 configuration.' });
+    }
+  });
+});
 
 // Cloudflare direct upload URL
 router.post('/video/cloudflare-upload-url', requireRoles(...contentRoles), async (_req, res) => {
@@ -1176,7 +1221,23 @@ const siteSettingsSchema = z.object({
     z.string().email(),
     z.literal('')
   ]).optional(),
-  maintenanceMode: z.boolean().optional()
+  maintenanceMode: z.boolean().optional(),
+  showMovies: z.boolean().optional(),
+  showStudios: z.boolean().optional(),
+  showPartners: z.boolean().optional(),
+  showAbout: z.boolean().optional(),
+  accentTheme: z.enum(['peach', 'violet', 'mint']).optional(),
+  paymentInstructions: z.string().trim().max(1000).optional(),
+  bkashNumber: z.string().trim().refine(value => !value || isBangladeshMobileNumber(value), 'Enter a Bangladesh mobile number (01… or +8801…)').optional(),
+  nagadNumber: z.string().trim().refine(value => !value || isBangladeshMobileNumber(value), 'Enter a Bangladesh mobile number (01… or +8801…)').optional(),
+  monthlyPriceBdt: z.number().int().min(0).max(1000000).optional(),
+  yearlyPriceBdt: z.number().int().min(0).max(1000000).optional(),
+  heroCovers: z.array(z.object({
+    title: z.string().trim().min(1).max(100),
+    imageUrl: z.string().url().max(1000).refine(value => { try { return new URL(value).protocol === 'https:'; } catch { return false; } }, 'HTTPS image URL required'),
+    animeSlug: z.string().regex(/^[a-z0-9-]+$/).min(2).max(160),
+    episodeId: z.string().uuid()
+  }).strict()).max(8).optional()
 }).strict();
 
 // Get website settings

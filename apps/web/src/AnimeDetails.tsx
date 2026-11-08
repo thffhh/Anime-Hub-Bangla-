@@ -483,6 +483,7 @@ export default function AnimeDetails() {
   })();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selected, setSelected] = useState<Episode | null>(null);
+  const [episodeUnavailable, setEpisodeUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [favorite, setFavorite] = useState(false);
@@ -510,7 +511,10 @@ export default function AnimeDetails() {
         if (!active) return;
 
         setAnime(mapped);
-        setSelected(mapped.episodes[0] || null);
+        const requestedEpisode = new URLSearchParams(window.location.search).get('episode');
+        const matchedEpisode = requestedEpisode ? mapped.episodes.find(item => item.id === requestedEpisode) : undefined;
+        setEpisodeUnavailable(Boolean(requestedEpisode && !matchedEpisode));
+        setSelected(requestedEpisode ? matchedEpisode || null : mapped.episodes[0] || null);
 
         const token = getToken();
         if (token) {
@@ -544,6 +548,13 @@ export default function AnimeDetails() {
       controller.abort();
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!loading && anime && window.location.hash === '#watch') {
+      const frame = requestAnimationFrame(() => document.getElementById('watch')?.scrollIntoView());
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [loading, anime]);
 
   async function toggleFavorite() {
     if (!anime || favoriteLoading) return;
@@ -610,14 +621,14 @@ export default function AnimeDetails() {
             </div>
           </section>
 
-          <main className="watch-layout">
+          <main className="watch-layout" id="watch">
             <section className="watch-main">
               <div className="watch-heading">
                 <div><div className="eyebrow">NOW WATCHING</div><h2>{selected ? `Episode ${selected.episodeNumber}: ${selected.title}` : 'Episodes coming soon'}</h2></div>
               </div>
 
               {selected ? <Player episode={selected} /> : (
-                <div className="player-empty"><Film size={38} /><strong>কোনো Published Episode নেই</strong><span>Admin Panel থেকে episode publish করতে হবে।</span></div>
+                <div className="player-empty"><Film size={38} /><strong>{episodeUnavailable ? 'এই episode এখন উপলব্ধ নয়' : 'কোনো Published Episode নেই'}</strong><span>{episodeUnavailable ? 'অন্য একটি episode নির্বাচন করুন।' : 'Admin Panel থেকে episode publish করতে হবে।'}</span></div>
               )}
 
               <p className="rights-note">শুধু অনুমোদিত ও লাইসেন্সকৃত কনটেন্ট দেখানো হবে।</p>
@@ -627,7 +638,7 @@ export default function AnimeDetails() {
             <aside className="episode-sidebar">
               <h3>Episodes <span>{anime.episodes.length}</span></h3>
               {anime.episodes.length ? anime.episodes.map(episode => (
-                <button key={episode.id} className={`public-episode ${selected?.id === episode.id ? 'active' : ''}`} onClick={() => setSelected(episode)}>
+                <button key={episode.id} className={`public-episode ${selected?.id === episode.id ? 'active' : ''}`} onClick={() => { setSelected(episode); setEpisodeUnavailable(false); }}>
                   <span className="ep-thumb">{episode.thumbnailUrl ? <img src={episode.thumbnailUrl} alt="" /> : <Play size={17} />}</span>
                   <span>
                     <b>EP {String(episode.episodeNumber).padStart(2, '0')}</b>

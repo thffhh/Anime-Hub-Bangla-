@@ -154,8 +154,11 @@ router.post(
 
     const p = parsed.data;
 
+    let client;
     try {
-      const result = await pool.query(`
+      client = await pool.connect();
+      await client.query('BEGIN');
+      const result = await client.query(`
         INSERT INTO public.collaboration_partners (
           name, slug, description, category,
           logo_url, cover_url,
@@ -178,7 +181,7 @@ router.post(
 
       const partner = result.rows[0];
 
-      await pool.query(`
+      await client.query(`
         INSERT INTO public.collaboration_partner_audit
           (partner_id, actor_user_id, action, details)
         VALUES ($1, $2, 'CREATE', $3::jsonb)
@@ -188,8 +191,10 @@ router.post(
         JSON.stringify({ name: partner.name })
       ]);
 
+      await client.query('COMMIT');
       res.status(201).json({ data: partner });
     } catch (error: any) {
+      if (client) await client.query('ROLLBACK').catch(() => {});
       if (error?.code === '23505') {
         return res.status(409).json({
           error: 'A partner with this slug already exists'
@@ -198,6 +203,8 @@ router.post(
 
       console.error('Create partner failed:', error);
       res.status(500).json({ error: 'Could not create partner' });
+    } finally {
+      client?.release();
     }
   }
 );
@@ -232,8 +239,11 @@ router.patch(
         : `${column} = ${placeholder}`;
     });
 
+    let client;
     try {
-      const result = await pool.query(`
+      client = await pool.connect();
+      await client.query('BEGIN');
+      const result = await client.query(`
         UPDATE public.collaboration_partners
         SET ${assignments.join(', ')}, updated_at = now()
         WHERE id = $1
@@ -241,12 +251,13 @@ router.patch(
       `, values);
 
       if (!result.rowCount) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Partner not found' });
       }
 
       const partner = result.rows[0];
 
-      await pool.query(`
+      await client.query(`
         INSERT INTO public.collaboration_partner_audit
           (partner_id, actor_user_id, action, details)
         VALUES ($1, $2, 'UPDATE', $3::jsonb)
@@ -256,8 +267,10 @@ router.patch(
         JSON.stringify({ changedFields: entries.map(([key]) => key) })
       ]);
 
+      await client.query('COMMIT');
       res.json({ data: partner });
     } catch (error: any) {
+      if (client) await client.query('ROLLBACK').catch(() => {});
       if (error?.code === '23505') {
         return res.status(409).json({
           error: 'A partner with this slug already exists'
@@ -266,6 +279,8 @@ router.patch(
 
       console.error('Update partner failed:', error);
       res.status(500).json({ error: 'Could not update partner' });
+    } finally {
+      client?.release();
     }
   }
 );
@@ -280,18 +295,22 @@ router.delete(
       return res.status(503).json({ error: 'Database not configured' });
     }
 
+    let client;
     try {
-      const result = await pool.query(`
+      client = await pool.connect();
+      await client.query('BEGIN');
+      const result = await client.query(`
         DELETE FROM public.collaboration_partners
         WHERE id = $1
         RETURNING id, name
       `, [req.params.id]);
 
       if (!result.rowCount) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Partner not found' });
       }
 
-      await pool.query(`
+      await client.query(`
         INSERT INTO public.collaboration_partner_audit
           (partner_id, actor_user_id, action, details)
         VALUES ($1, $2, 'DELETE', $3::jsonb)
@@ -301,10 +320,14 @@ router.delete(
         JSON.stringify({ name: result.rows[0].name })
       ]);
 
+      await client.query('COMMIT');
       res.json({ ok: true });
     } catch (error) {
+      if (client) await client.query('ROLLBACK').catch(() => {});
       console.error('Delete partner failed:', error);
       res.status(500).json({ error: 'Could not delete partner' });
+    } finally {
+      client?.release();
     }
   }
 );

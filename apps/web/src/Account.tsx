@@ -141,6 +141,23 @@ export default function Account() {
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState('');
   const [notice, setNotice] = useState('');
+  const [planPrices, setPlanPrices] = useState<{ monthlyPriceBdt?: number; yearlyPriceBdt?: number; paymentInstructions?: string; bkashNumber?: string; nagadNumber?: string }>({});
+  const [paymentPlan, setPaymentPlan] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [paymentMethod, setPaymentMethod] = useState('BKASH');
+  const [transactionRef, setTransactionRef] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API}/api/cms/public/homepage`, { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(result => {
+        const raw = result?.settings;
+        if (raw) setPlanPrices({ monthlyPriceBdt: typeof raw.monthlyPriceBdt === 'number' ? raw.monthlyPriceBdt : undefined, yearlyPriceBdt: typeof raw.yearlyPriceBdt === 'number' ? raw.yearlyPriceBdt : undefined, paymentInstructions: typeof raw.paymentInstructions === 'string' ? raw.paymentInstructions : undefined, bkashNumber: typeof raw.bkashNumber === 'string' && /^(?:01|\+8801)[3-9]\d{8}$/.test(raw.bkashNumber) ? raw.bkashNumber : undefined, nagadNumber: typeof raw.nagadNumber === 'string' && /^(?:01|\+8801)[3-9]\d{8}$/.test(raw.nagadNumber) ? raw.nagadNumber : undefined });
+      }).catch(err => { if (err?.name !== 'AbortError') console.warn('Plan prices unavailable'); });
+    return () => controller.abort();
+  }, []);
 
   const loadData = useCallback(async (activeToken: string) => {
     setLoading(true);
@@ -201,6 +218,26 @@ export default function Account() {
       void loadAccount(saved);
     }
   }, [loadAccount]);
+
+  const recipient = paymentMethod === 'BKASH' ? planPrices.bkashNumber : paymentMethod === 'NAGAD' ? planPrices.nagadNumber : undefined;
+  const methodAvailable = paymentMethod === 'BKASH' || paymentMethod === 'NAGAD' ? Boolean(recipient) : Boolean(planPrices.paymentInstructions?.trim());
+
+  async function submitPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const amount = paymentPlan === 'MONTHLY' ? planPrices.monthlyPriceBdt : planPrices.yearlyPriceBdt;
+    if (!token || !amount || !methodAvailable || paymentBusy) return;
+    setPaymentBusy(true); setPaymentMessage('');
+    try {
+      const result = await apiRequest<{ message: string }>('/api/user/membership/request', token, {
+        method: 'POST', body: JSON.stringify({ plan: paymentPlan, paymentMethod, transactionReference: transactionRef.trim(), amountBdt: amount })
+      });
+      setTransactionRef('');
+      await loadData(token);
+      setPaymentMessage(result.message || 'Payment submitted for manual review.');
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : 'Could not submit payment.');
+    } finally { setPaymentBusy(false); }
+  }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -483,7 +520,19 @@ export default function Account() {
                   <div className="ah-membership-info"><small>CURRENT MEMBERSHIP</small><h2>{membership?.plan || 'FREE'} PLAN</h2><span className="ah-status">{membership?.status || 'ACTIVE'}</span></div>
                   <div className="ah-membership-dates"><small>Started</small><b>{formatDate(membership?.startsAt)}</b><small>Expires</small><b>{formatDate(membership?.endsAt)}</b></div>
                 </div>
-                <p className="ah-muted">Premium access is activated only after payment verification by the Anime Hub Bangla team. Membership upgrades and payment requests are not initiated from this page yet.</p>
+                <div className="ah-price-grid"><div><small>MONTHLY</small><strong>{planPrices.monthlyPriceBdt ? `৳${planPrices.monthlyPriceBdt.toLocaleString()}` : 'Not configured'}</strong></div><div><small>YEARLY</small><strong>{planPrices.yearlyPriceBdt ? `৳${planPrices.yearlyPriceBdt.toLocaleString()}` : 'Not configured'}</strong></div></div>
+                <p className="ah-muted">Premium activates only after the team verifies your payment. This is a manual reference submission, not an automatic checkout.</p>
+                {planPrices.paymentInstructions && <div className="ah-payment-instructions">{planPrices.paymentInstructions}</div>}
+                <form className="ah-payment-form" onSubmit={submitPayment}>
+                  <label>Plan<select value={paymentPlan} onChange={e => setPaymentPlan(e.target.value as 'MONTHLY' | 'YEARLY')}><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label>
+                  <label>Payment method<select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="BKASH">bKash</option><option value="NAGAD">Nagad</option><option value="ROCKET">Rocket (manual reference)</option><option value="SSLCOMMERZ">SSLCommerz (manual reference)</option></select></label>
+                  {(paymentMethod === 'BKASH' || paymentMethod === 'NAGAD') && <div className="ah-recipient"><small>{paymentMethod === 'BKASH' ? 'bKash' : 'Nagad'} recipient</small><strong>{recipient || 'Not configured'}</strong><span>Verify the recipient and payment instructions before sending money.</span></div>}
+                  {!methodAvailable && <p className="ah-muted">This payment method is not configured. Please choose another method or contact the team before paying.</p>}
+                  <label>Transaction reference<input required minLength={4} maxLength={120} value={transactionRef} onChange={e => setTransactionRef(e.target.value)} placeholder="Transaction ID" /></label>
+                  <p className="ah-muted">Amount: {paymentPlan === 'MONTHLY' ? (planPrices.monthlyPriceBdt ? `৳${planPrices.monthlyPriceBdt.toLocaleString()}` : 'Not configured') : (planPrices.yearlyPriceBdt ? `৳${planPrices.yearlyPriceBdt.toLocaleString()}` : 'Not configured')}</p>
+                  <button className="ah-primary-btn" disabled={paymentBusy || !methodAvailable || !(paymentPlan === 'MONTHLY' ? planPrices.monthlyPriceBdt : planPrices.yearlyPriceBdt)}>{paymentBusy ? 'Submitting…' : 'Submit for verification'}</button>
+                  {paymentMessage && <div className="ah-form-message" role="status">{paymentMessage}</div>}
+                </form>
               </section>
 
               <section className="ah-panel">
@@ -678,4 +727,10 @@ const styles = `
 .ah-auth-card,.ah-panel,.ah-stat-card{background:#171a2a;border-color:#ffffff16;border-radius:16px;box-shadow:0 18px 55px #0003}
 .ah-auth-card{padding:38px}.ah-input-wrap input{background:#0d101d;border-radius:10px}.ah-primary-btn{border-radius:10px}.ah-topbar,.ah-sidebar{background:#101320}.ah-logo-mark{background:#ffb79c;color:#251920;border:0;font-family:Inter,sans-serif;font-weight:900}.ah-nav button.active,.ah-nav button:hover{background:#ffb79c1c}.ah-main{background:radial-gradient(circle at 90% 0%,#80547320,transparent 40%)}
 @media(max-width:680px){.ah-auth-card{padding:25px 20px}.ah-auth-intro h1{font-size:43px}.ah-auth-grid{margin-top:38px}}
+
+.ah-price-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.ah-price-grid>div{padding:18px;border:1px solid #ffffff1c;border-radius:14px;background:#ffffff08}.ah-price-grid small,.ah-price-grid strong{display:block}.ah-price-grid small{color:#b1b5c5;font-size:10px;letter-spacing:1.5px}.ah-price-grid strong{font-size:20px;margin-top:10px;color:#ffd2bd}@media(max-width:400px){.ah-price-grid{grid-template-columns:1fr}}
+
+.ah-payment-instructions{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;border:1px solid #ffb79c33;background:#ffb79c0c;padding:15px;border-radius:12px;font-size:13px;color:#f1dbd2}.ah-payment-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}.ah-payment-form label{display:grid;gap:7px;font-size:12px;color:#c8c9cf}.ah-payment-form select,.ah-payment-form input{width:100%;min-width:0;padding:12px;border:1px solid #ffffff25;border-radius:9px;background:#0d101d;color:#fff;font:inherit}.ah-payment-form .ah-primary-btn,.ah-payment-form .ah-form-message,.ah-payment-form .ah-muted{grid-column:1/-1;margin:0}.ah-payment-form .ah-primary-btn{width:auto;justify-self:start;padding:0 22px}@media(max-width:600px){.ah-payment-form{grid-template-columns:1fr}.ah-payment-form .ah-primary-btn,.ah-payment-form .ah-form-message,.ah-payment-form .ah-muted{grid-column:auto}}
+
+.ah-recipient{grid-column:1/-1;display:grid;gap:7px;padding:16px;border:1px solid #ffb79c44;background:#ffb79c0c;border-radius:12px}.ah-recipient small{color:#bdc1cf;font-size:11px}.ah-recipient strong{color:#ffd2bd;font-size:20px;letter-spacing:1px;overflow-wrap:anywhere}.ah-recipient span{color:#aeb3c3;font-size:11px;line-height:1.5}@media(max-width:600px){.ah-recipient{grid-column:auto}}
 `;

@@ -11,6 +11,7 @@ import {
 
 import Admin from './Admin';
 import PartnerManagement from './PartnerManagement';
+import HomepageCovers from './HomepageCovers';
 
 import { API } from './api';
 
@@ -49,6 +50,16 @@ type SettingsData = {
   heroSubtitle: string;
   contactEmail: string;
   maintenanceMode: boolean;
+  showMovies: boolean;
+  showStudios: boolean;
+  showPartners: boolean;
+  showAbout: boolean;
+  accentTheme: 'peach' | 'violet' | 'mint';
+  paymentInstructions: string;
+  bkashNumber: string;
+  nagadNumber: string;
+  monthlyPriceBdt: number;
+  yearlyPriceBdt: number;
 };
 
 const defaultSettings: SettingsData = {
@@ -58,7 +69,17 @@ const defaultSettings: SettingsData = {
   heroTitle: 'Your Anime. Your Language.',
   heroSubtitle: 'Discover anime stories in Bangla.',
   contactEmail: '',
-  maintenanceMode: false
+  maintenanceMode: false,
+  showMovies: true,
+  showStudios: true,
+  showPartners: true,
+  showAbout: true,
+  accentTheme: 'peach',
+  paymentInstructions: '',
+  bkashNumber: '',
+  nagadNumber: '',
+  monthlyPriceBdt: 0,
+  yearlyPriceBdt: 0
 };
 
 type Section =
@@ -227,6 +248,7 @@ export default function SuperAdmin() {
 
   const [settings, setSettings] =
     useState<SettingsData>(defaultSettings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const [search, setSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
@@ -301,10 +323,17 @@ export default function SuperAdmin() {
     if (animeData) setAnime(animeData.data || []);
 
     if (settingsData?.data) {
-      setSettings({
-        ...defaultSettings,
-        ...settingsData.data
-      });
+      const clean = { ...defaultSettings };
+      for (const key of Object.keys(defaultSettings) as (keyof SettingsData)[]) {
+        const value = settingsData.data[key];
+        if (typeof value === typeof defaultSettings[key]) {
+          (clean as unknown as Record<string, unknown>)[key] = value;
+        }
+      }
+      setSettings(clean);
+      setSettingsLoaded(true);
+    } else {
+      setSettingsLoaded(false);
     }
 
     const failed = results.filter(x => x.status === 'rejected').length;
@@ -423,8 +452,8 @@ export default function SuperAdmin() {
         body: JSON.stringify(settings)
       });
 
-      setMessage('Website settings saved.');
       await loadDashboard();
+      setMessage('Website settings saved.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save settings.');
     } finally {
@@ -614,7 +643,7 @@ export default function SuperAdmin() {
         />
       )}
 
-      <aside style={{
+      <aside id="admin-navigation" style={{
         width: 260,
         flexShrink: 0,
         background: '#101320',
@@ -642,6 +671,7 @@ export default function SuperAdmin() {
           </div>
           <button
             onClick={() => setMenuOpen(false)}
+            aria-label="Close admin navigation"
             style={{ marginLeft: 'auto', background: 'none', color: '#aaa', border: 0 }}
           >
             <X />
@@ -747,6 +777,9 @@ export default function SuperAdmin() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
             <button
               onClick={() => setMenuOpen(true)}
+              aria-label="Open admin navigation"
+              aria-expanded={menuOpen}
+              aria-controls="admin-navigation"
               style={{
                 display: 'none',
                 background: '#17171e',
@@ -1046,15 +1079,38 @@ export default function SuperAdmin() {
                 Maintenance mode setting (stored only; does not restrict access)
               </label>
 
-              <button disabled={loading} style={buttonStyle}>
+              <fieldset className="sa-visibility-controls">
+                <legend>Appearance &amp; premium pricing</legend>
+                <p>Choose the homepage accent and display prices. Zero means not configured. Prices and instructions enable manual submissions, not automatic payment checkout. Never enter secrets.</p>
+                <label>Accent theme <select value={settings.accentTheme} onChange={e => setSettings(old => ({ ...old, accentTheme: e.target.value as SettingsData['accentTheme'] }))}><option value="peach">Peach</option><option value="violet">Violet</option><option value="mint">Mint</option></select></label>
+                <label>bKash number <input type="tel" inputMode="tel" pattern="(01|\+8801)[3-9][0-9]{8}" maxLength={14} value={settings.bkashNumber} onChange={e => setSettings(old => ({ ...old, bkashNumber: e.target.value.trim() }))} placeholder="01XXXXXXXXX" /></label>
+                <label>Nagad number <input type="tel" inputMode="tel" pattern="(01|\+8801)[3-9][0-9]{8}" maxLength={14} value={settings.nagadNumber} onChange={e => setSettings(old => ({ ...old, nagadNumber: e.target.value.trim() }))} placeholder="01XXXXXXXXX" /></label>
+                <p>Numbers are public and visible to members. Use 01… or +8801… with no spaces. Leave blank to disable a method. Never enter PINs or passwords.</p>
+                <label className="sa-payment-instructions">Public manual payment instructions<textarea maxLength={1000} value={settings.paymentInstructions} onChange={e => setSettings(old => ({ ...old, paymentInstructions: e.target.value }))} placeholder="Payment recipient and instructions (public; no secret keys)" /></label>
+                <label>Monthly price (BDT) <input type="number" min="0" max="1000000" step="1" value={settings.monthlyPriceBdt} onChange={e => setSettings(old => ({ ...old, monthlyPriceBdt: Number(e.target.value) }))} /></label>
+                <label>Yearly price (BDT) <input type="number" min="0" max="1000000" step="1" value={settings.yearlyPriceBdt} onChange={e => setSettings(old => ({ ...old, yearlyPriceBdt: Number(e.target.value) }))} /></label>
+              </fieldset>
+              <fieldset className="sa-visibility-controls">
+                <legend>Homepage sections</legend>
+                <p>Choose which sections and navigation links visitors can see. The anime catalogue always remains visible.</p>
+                {([
+                  ['showMovies', 'Movies'], ['showStudios', 'Creative community'],
+                  ['showPartners', 'Collaboration partners'], ['showAbout', 'About']
+                ] as const).map(([key, label]) => (
+                  <label key={key}><input type="checkbox" checked={settings[key]} onChange={e => setSettings(old => ({ ...old, [key]: e.target.checked }))} /> {label}</label>
+                ))}
+              </fieldset>
+              {!settingsLoaded && <p role="alert" style={{ color: '#ffb4a4' }}>Website settings could not be loaded. Refresh before saving to avoid overwriting existing settings.</p>}
+              <button disabled={loading || !settingsLoaded} style={buttonStyle}>
                 {loading ? 'Saving…' : 'Save Website Settings'}
               </button>
             </form>
 
+            <HomepageCovers anime={anime} />
             <div style={{ borderTop: '1px solid #333', marginTop: 25, paddingTop: 20 }}>
               <h3><Palette size={18} color="#ffb79c" /> Website Management Areas</h3>
               <p style={{ color: '#999', lineHeight: 1.7 }}>
-                Logo and image library, homepage section ordering, SEO metadata,
+                The controls above manage homepage text and section visibility. Logo and image library, homepage section ordering, SEO metadata,
                 social links, custom pages, theme settings, navigation menus,
                 legal pages and announcement scheduling can be added as dedicated
                 CMS modules. Only the settings fields connected to the backend
