@@ -19,7 +19,7 @@ PostgreSQL (Neon), Cloudflare R2 object storage, and pluggable video providers.
 - `.env.example`: placeholders only; never commit real secrets
 
 ## Requirements
-- Node.js 20+
+- Node.js 20.9+
 - npm 10+
 - PostgreSQL database (Neon works)
 - Git

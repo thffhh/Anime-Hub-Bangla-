@@ -87,7 +87,9 @@ router.get('/public/homepage', async (_req, res) => {
         WHERE setting_key IN (
           'siteName', 'tagline', 'announcement',
           'heroTitle', 'heroSubtitle', 'contactEmail',
-          'maintenanceMode'
+          'maintenanceMode', 'showMovies', 'showStudios',
+          'showPartners', 'showAbout', 'accentTheme',
+          'monthlyPriceBdt', 'yearlyPriceBdt', 'paymentInstructions', 'bkashNumber', 'nagadNumber', 'heroCovers'
         )
       `)
     ]);

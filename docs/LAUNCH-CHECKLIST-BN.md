@@ -21,3 +21,22 @@
 
 ## ৪. যাচাই
 `npm install`, `npm run build`, `npm test` চালান। Smoke test database ছাড়া API health ও protected-route checks করে; এটি database, payments বা ভিডিওর end-to-end test নয়। Staging environment-এ login, anime ও episode edit/publish, video, payment review, moderation, mobile layout এবং backup restore পরীক্ষা করুন। তারপর frontend ও API দুটো deploy করে আবার পরীক্ষা করুন।
+
+## Homepage section controls
+Super Admin → Website CMS থেকে Movies, Creative Community, Collaboration Partners এবং About দেখানো/লুকানো যায়। এই পরিবর্তনের জন্য নতুন frontend ও API দুটোই deploy করতে হবে। Catalog সবসময় দেখা যায়; admin login footer থেকে সরানো হলেও `/super-admin` ঠিকানায় পাওয়া যাবে। Backend role checks-ই admin access রক্ষা করে, লিংক লুকানো নয়।
+
+## Homepage covers ও দাম
+এই সংস্করণের জন্য database backup নিয়ে staging-এ পরীক্ষা করে `database/migrations/003_homepage_settings.sql` চালান। আগের schema-তে homepage settings-এর টেবিল না থাকলে নতুন controls কাজ করবে না। Existing table-এর গঠন আলাদা হলে আগে যাচাই করুন; `CREATE TABLE IF NOT EXISTS` বিদ্যমান table বদলায় না। এরপর API এবং web দুটোই deploy করুন।
+
+Super Admin → Website CMS-এ accent, monthly/yearly price এবং homepage covers সেট করুন। ০ মানে দাম সেট করা হয়নি। দাম দেখানো বা manual request validation live payment gateway নয়। Cover-এর জন্য আগে ছবি HTTPS-এ host করুন; ছবির URL এবং published anime/episode নির্বাচন করে Save covers চাপুন। Episode video আগে Anime & Episodes-এ যোগ ও publish করতে হবে। Cover খোলা হলে ওই episode নির্বাচিত হবে; premium authorization আগের মতোই প্রযোজ্য। R2 কনফিগার থাকলে সরাসরি cover image upload-ও করা যায়।
+
+## Manual Premium requests
+Super Admin → Website CMS-এ plan price এবং **public** payment instructions দিন (শুধু প্রাপকের তথ্য ও নির্দেশনা, কোনো secret নয়)। Account → Membership থেকে ব্যবহারকারী transaction reference জমা দিতে পারে। Server configured price মিলিয়ে pending request রাখে; admin-কে provider portal-এ স্বাধীনভাবে যাচাই করে Payments-এ approve/reject করতে হবে। এটি টাকা সংগ্রহ করে না বা gateway webhook নয়। ০ বা unset price-এ request গ্রহণ করা হয় না। Live ব্যবহারের আগে staging-এ duplicate reference, price change, approval/rejection ও entitlement পরীক্ষা করুন।
+
+## Cover image upload (Cloudflare R2)
+Render API-তে `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, এবং bucket-এর সাথে যুক্ত public HTTPS domain/prefix `R2_PUBLIC_BASE_URL` দিন। R2 bucket ও public domain আগে তৈরি এবং serving যাচাই করতে হবে। API restart/redeploy-এর পর Website CMS থেকে JPEG/PNG/WebP (সর্বোচ্চ 5 MB) upload করা যাবে; server ছবি যাচাই করে WebP-তে রূপান্তর করে। অনুমোদিত admin ছাড়া upload করা যায় না। আগের URL দিয়েও cover দেওয়া যায়। Upload করলেই cover publish হয় না: Add cover ও Save covers চাপতে হবে। Cover সরালে বা draft বাতিল করলে storage থেকে uploaded file স্বয়ংক্রিয়ভাবে মুছে যায় না; storage cleanup প্রয়োজন। Credentials কখনও frontend-এ বা Git-এ দেবেন না।
+
+## Collaboration partners
+যদি আগের database-এ `collaboration_partners` ও `collaboration_partner_audit` না থাকে, backup নিয়ে staging-এ যাচাই করে `database/migrations/004_collaboration_partners.sql` চালান। বিদ্যমান table-এর গঠন আলাদা হলে আগে পরীক্ষা করুন। Render-এ Node.js 20.9+ দরকার। এরপর partner add, edit, publish এবং delete staging-এ যাচাই করুন।
+
+Super Admin → Website CMS → Appearance & premium pricing-এ bKash ও Nagad-এর **public recipient mobile number** যোগ করুন (যেমন 01XXXXXXXXX বা +8801XXXXXXXXX; স্পেস নয়)। এগুলো সদস্যরা দেখতে পাবেন। কোনো PIN, password, OTP বা API secret দেবেন না। নম্বর ফাঁকা থাকলে সেই মাধ্যমের submission বন্ধ থাকবে; plan price-ও শূন্যের বেশি হতে হবে। Payment instructions-এ কোন পদ্ধতিতে টাকা পাঠাতে হবে তা স্পষ্ট করুন। Rocket/SSLCommerz-ও এখানে শুধু manual reference; কোনো automated checkout নয়। প্রতিটি payment provider portal-এ স্বাধীনভাবে যাচাই করুন।
