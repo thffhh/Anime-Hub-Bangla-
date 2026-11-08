@@ -10,7 +10,7 @@ if [[ ! -d android ]]; then npx cap add android; fi
 npx cap sync android
 # Capacitor's template uses the much larger -all archive and a 10s timeout;
 # use the smaller binary distribution and a longer network timeout.
-node -e "const fs=require('fs');const p='android/gradle/wrapper/gradle-wrapper.properties';let s=fs.readFileSync(p,'utf8').replace(/gradle-8\\.2\\.1-all\\.zip/g,'gradle-8.2.1-bin.zip').replace(/networkTimeout=\\d+/,'networkTimeout=120000');fs.writeFileSync(p,s)"
+node -e "const fs=require('fs');const p='android/gradle/wrapper/gradle-wrapper.properties';let s=fs.readFileSync(p,'utf8').replace(/distributionUrl=.*$/m,'distributionUrl=https\\\\://downloads.gradle.org/distributions/gradle-8.2.1-bin.zip').replace(/networkTimeout=\\d+/,'networkTimeout=120000');fs.writeFileSync(p,s)"
 cd android
 RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 chmod +x gradlew
