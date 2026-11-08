@@ -272,11 +272,11 @@ router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
       UPDATE public.anime SET
         slug = COALESCE($2, slug),
         title = COALESCE($3, title),
-        original_title = COALESCE($4, original_title),
-        synopsis = COALESCE($5, synopsis),
-        poster_url = COALESCE($6, poster_url),
-        banner_url = COALESCE($7, banner_url),
-        release_year = COALESCE($8, release_year),
+        original_title = CASE WHEN $11 THEN $4 ELSE original_title END,
+        synopsis = CASE WHEN $12 THEN $5 ELSE synopsis END,
+        poster_url = CASE WHEN $13 THEN $6 ELSE poster_url END,
+        banner_url = CASE WHEN $14 THEN $7 ELSE banner_url END,
+        release_year = CASE WHEN $15 THEN $8 ELSE release_year END,
         status = COALESCE($9, status),
         is_published = COALESCE($10, is_published),
         updated_at = now()
@@ -292,7 +292,9 @@ router.put('/anime/:id', requireRoles(...contentRoles), async (req, res) => {
       a.bannerUrl ?? null,
       a.releaseYear ?? null,
       a.status ?? null,
-      a.published ?? null
+      a.published ?? null,
+      a.originalTitle !== undefined, a.synopsis !== undefined,
+      a.posterUrl !== undefined, a.bannerUrl !== undefined, a.releaseYear !== undefined
     ]);
 
     if (!result.rowCount) {
@@ -393,7 +395,9 @@ router.post('/anime/:id/episodes', requireRoles(...contentRoles), async (req, re
       e.providerVideoId ?? null,
       e.published,
       e.isPremium,
-      e.releaseAt ?? null
+      e.releaseAt ?? null,
+      e.synopsis !== undefined, e.runtimeSeconds !== undefined, e.thumbnailUrl !== undefined,
+      e.providerVideoId !== undefined, e.releaseAt !== undefined
     ]);
 
     res.status(201).json({ data: result.rows[0] });
@@ -427,14 +431,14 @@ router.put('/episodes/:id', requireRoles(...contentRoles), async (req, res) => {
       UPDATE public.episodes SET
         episode_number = COALESCE($2, episode_number),
         title = COALESCE($3, title),
-        synopsis = COALESCE($4, synopsis),
-        runtime_seconds = COALESCE($5, runtime_seconds),
-        thumbnail_url = COALESCE($6, thumbnail_url),
+        synopsis = CASE WHEN $12 THEN $4 ELSE synopsis END,
+        runtime_seconds = CASE WHEN $13 THEN $5 ELSE runtime_seconds END,
+        thumbnail_url = CASE WHEN $14 THEN $6 ELSE thumbnail_url END,
         video_provider = COALESCE($7, video_provider),
-        provider_video_id = COALESCE($8, provider_video_id),
+        provider_video_id = CASE WHEN $15 THEN $8 ELSE provider_video_id END,
         published = COALESCE($9, published),
         is_premium = COALESCE($10, is_premium),
-        release_at = COALESCE($11, release_at)
+        release_at = CASE WHEN $16 THEN $11 ELSE release_at END
       WHERE id = $1
       RETURNING *
     `, [
@@ -1077,7 +1081,7 @@ router.get('/moderation', requireRoles('SUPER_ADMIN', 'ADMIN', 'MODERATOR'), asy
       pool.query(`
         SELECT r.id, r.reason, r.status,
           r.created_at AS "createdAt",
-          c.body, u.display_name AS "reporterName"
+          c.id AS "commentId", c.body, u.display_name AS "reporterName"
         FROM public.content_reports r
         LEFT JOIN public.comments c ON c.id = r.comment_id
         LEFT JOIN public.users u ON u.id = r.reporter_user_id

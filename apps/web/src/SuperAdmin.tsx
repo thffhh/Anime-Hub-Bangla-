@@ -12,10 +12,7 @@ import {
 import Admin from './Admin';
 import PartnerManagement from './PartnerManagement';
 
-const API = (
-  import.meta.env.VITE_API_URL ||
-  'https://anime-hub-bangla.onrender.com'
-).replace(/\/$/, '');
+import { API } from './api';
 
 type RoleUser = {
   id: string;
@@ -99,8 +96,8 @@ const nav: {
 const groups = ['MAIN', 'WEBSITE', 'CONTENT', 'MANAGEMENT', 'FINANCE', 'SYSTEM'];
 
 const panelStyle: React.CSSProperties = {
-  background: '#111116',
-  border: '1px solid #292933',
+  background: '#171a2a',
+  border: '1px solid #303447',
   borderRadius: 16,
   padding: 22,
   minWidth: 0
@@ -108,7 +105,7 @@ const panelStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#09090d',
+  background: '#0b0d19',
   color: '#f5f5f5',
   border: '1px solid #34343e',
   borderRadius: 9,
@@ -118,7 +115,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  background: '#d4af37',
+  background: '#ffb79c',
   color: '#17130a',
   border: 0,
   borderRadius: 9,
@@ -146,7 +143,7 @@ function Card({
     <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: '#aaa', fontSize: 13 }}>{title}</span>
-        <Icon size={20} color="#d4af37" />
+        <Icon size={20} color="#ffb79c" />
       </div>
       <strong style={{ fontSize: 28, color: '#fff' }}>{value}</strong>
       {detail && <small style={{ color: '#888' }}>{detail}</small>}
@@ -357,10 +354,15 @@ export default function SuperAdmin() {
 
         setUser(result.user);
       })
-      .catch(() => {
+      .catch(err => {
         if (!active) return;
-        logout();
-        setError('Your session expired. Please sign in again.');
+        const message = err instanceof Error ? err.message : '';
+        if (/expired|invalid session|authentication required|account changed/i.test(message)) {
+          logout();
+          setError('Your session expired. Please sign in again.');
+        } else {
+          setError('Could not verify your session. Check your connection and refresh; your session has been kept.');
+        }
       });
 
     return () => {
@@ -491,7 +493,7 @@ export default function SuperAdmin() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#08080b',
+        background: '#0b0d19',
         color: '#fff',
         display: 'grid',
         placeItems: 'center',
@@ -500,7 +502,7 @@ export default function SuperAdmin() {
         <form onSubmit={login} style={{
           width: '100%',
           maxWidth: 430,
-          background: '#111116',
+          background: '#171a2a',
           border: '1px solid #333',
           borderRadius: 20,
           padding: 30
@@ -510,14 +512,14 @@ export default function SuperAdmin() {
             height: 55,
             display: 'grid',
             placeItems: 'center',
-            background: '#d4af37',
+            background: '#ffb79c',
             color: '#111',
             borderRadius: 15,
             fontWeight: 1000,
             fontSize: 21
           }}>AH</div>
 
-          <p style={{ color: '#d4af37', letterSpacing: 3, fontSize: 11, marginTop: 24 }}>
+          <p style={{ color: '#ffb79c', letterSpacing: 3, fontSize: 11, marginTop: 24 }}>
             ANIME HUB BANGLA
           </p>
 
@@ -593,7 +595,7 @@ export default function SuperAdmin() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#09090d',
+      background: '#0b0d19',
       color: '#f4f4f5',
       display: 'flex',
       fontFamily: 'Inter, system-ui, sans-serif'
@@ -615,7 +617,7 @@ export default function SuperAdmin() {
       <aside style={{
         width: 260,
         flexShrink: 0,
-        background: '#101015',
+        background: '#101320',
         borderRight: '1px solid #292933',
         padding: 18,
         display: 'flex',
@@ -628,7 +630,7 @@ export default function SuperAdmin() {
       }} className="sa-sidebar-responsive">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 30 }}>
           <div style={{
-            background: '#d4af37',
+            background: '#ffb79c',
             color: '#111',
             borderRadius: 10,
             padding: 11,
@@ -636,7 +638,7 @@ export default function SuperAdmin() {
           }}>AH</div>
           <div>
             <b style={{ display: 'block', letterSpacing: 1 }}>ANIME HUB</b>
-            <small style={{ color: '#d4af37', letterSpacing: 2 }}>SUPER ADMIN</small>
+            <small style={{ color: '#ffb79c', letterSpacing: 2 }}>SUPER ADMIN</small>
           </div>
           <button
             onClick={() => setMenuOpen(false)}
@@ -676,8 +678,8 @@ export default function SuperAdmin() {
                     border: 0,
                     borderRadius: 9,
                     textAlign: 'left',
-                    background: active ? '#302817' : 'transparent',
-                    color: active ? '#e7c75b' : '#aaa',
+                    background: active ? '#49303a' : 'transparent',
+                    color: active ? '#ffd2bd' : '#aaa',
                     cursor: 'pointer',
                     fontSize: 13
                   }}
@@ -697,7 +699,7 @@ export default function SuperAdmin() {
           paddingTop: 18
         }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
-            <Crown color="#d4af37" />
+            <Crown color="#ffb79c" />
             <div style={{ minWidth: 0 }}>
               <b style={{ display: 'block', fontSize: 13 }}>
                 {user.displayName || 'Super Admin'}
@@ -758,7 +760,7 @@ export default function SuperAdmin() {
               <Menu />
             </button>
             <div>
-              <small style={{ color: '#d4af37', letterSpacing: 2 }}>
+              <small style={{ color: '#ffb79c', letterSpacing: 2 }}>
                 PLATFORM CONTROL CENTER
               </small>
               <h1 style={{ margin: '5px 0 0', fontSize: 25 }}>
@@ -856,7 +858,7 @@ export default function SuperAdmin() {
               gap: 15
             }}>
               <section style={panelStyle}>
-                <h3><Server size={18} color="#d4af37" /> Platform Services</h3>
+                <h3><Server size={18} color="#ffb79c" /> Platform Services</h3>
                 {[
                   ['API Server', health?.online ? 'ONLINE' : 'UNAVAILABLE'],
                   ['Database', String(health?.database || 'NOT REPORTED').toUpperCase()],
@@ -876,13 +878,13 @@ export default function SuperAdmin() {
                   </div>
                 ))}
                 <a href={`${API}/api/health`} target="_blank" rel="noreferrer"
-                  style={{ color: '#d4af37', display: 'inline-block', marginTop: 17 }}>
+                  style={{ color: '#ffb79c', display: 'inline-block', marginTop: 17 }}>
                   Open health endpoint <ExternalLink size={13} />
                 </a>
               </section>
 
               <section style={panelStyle}>
-                <h3><Activity size={18} color="#d4af37" /> Platform Activity</h3>
+                <h3><Activity size={18} color="#ffb79c" /> Platform Activity</h3>
                 {[
                   ['Anime catalogue', anime.length],
                   ['User accounts', users.length],
@@ -939,7 +941,7 @@ export default function SuperAdmin() {
                         cursor: 'pointer'
                       }}
                     >
-                      <ItemIcon size={20} color="#d4af37" />
+                      <ItemIcon size={20} color="#ffb79c" />
                       <b style={{ display: 'block', marginTop: 10 }}>{String(label)}</b>
                     </button>
                   );
@@ -989,7 +991,7 @@ export default function SuperAdmin() {
             <SectionTitle
               title="Website Content Management"
               description="Manage website identity and homepage content through the connected settings API."
-              action={<a href="/" target="_blank" rel="noreferrer" style={{ color: '#d4af37' }}>Preview Website ↗</a>}
+              action={<a href="/" target="_blank" rel="noreferrer" style={{ color: '#ffb79c' }}>Preview Website ↗</a>}
             />
 
             <form onSubmit={saveSettings}>
@@ -1041,7 +1043,7 @@ export default function SuperAdmin() {
                     maintenanceMode: e.target.checked
                   }))}
                 />
-                Maintenance mode setting
+                Maintenance mode setting (stored only; does not restrict access)
               </label>
 
               <button disabled={loading} style={buttonStyle}>
@@ -1050,7 +1052,7 @@ export default function SuperAdmin() {
             </form>
 
             <div style={{ borderTop: '1px solid #333', marginTop: 25, paddingTop: 20 }}>
-              <h3><Palette size={18} color="#d4af37" /> Website Management Areas</h3>
+              <h3><Palette size={18} color="#ffb79c" /> Website Management Areas</h3>
               <p style={{ color: '#999', lineHeight: 1.7 }}>
                 Logo and image library, homepage section ordering, SEO metadata,
                 social links, custom pages, theme settings, navigation menus,
@@ -1083,7 +1085,7 @@ export default function SuperAdmin() {
             <div style={{ color: '#aaa', marginBottom: 15 }}>
               {anime.length} anime records loaded from the connected API.
             </div>
-            <Admin />
+            <Admin view="content" />
           </section>
         )}
 
@@ -1115,7 +1117,7 @@ export default function SuperAdmin() {
                     borderRadius: 12,
                     padding: 17
                   }}>
-                    <ItemIcon color="#d4af37" size={21} />
+                    <ItemIcon color="#ffb79c" size={21} />
                     <b style={{ display: 'block', marginTop: 10 }}>{String(title)}</b>
                     <small style={{ display: 'block', color: '#999', marginTop: 7, lineHeight: 1.5 }}>
                       {String(description)}
@@ -1124,7 +1126,7 @@ export default function SuperAdmin() {
                 );
               })}
             </div>
-            <Admin />
+            <Admin view="operations" />
           </section>
         )}
 
@@ -1172,7 +1174,7 @@ export default function SuperAdmin() {
                 <thead>
                   <tr>
                     {['Name', 'Email', 'Role', 'Status', 'Account ID'].map(x => (
-                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#ffb79c', borderBottom: '1px solid #333' }}>{x}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1221,7 +1223,7 @@ export default function SuperAdmin() {
                 <thead>
                   <tr>
                     {['Name', 'Email', 'Role', 'Status'].map(x => (
-                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                      <th key={x} style={{ textAlign: 'left', padding: 12, color: '#ffb79c', borderBottom: '1px solid #333' }}>{x}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1247,7 +1249,7 @@ export default function SuperAdmin() {
                 permissions must be performed through the protected staff API.
               </p>
             </div>
-            <Admin />
+            <Admin view="staff" />
           </section>
         )}
 
@@ -1299,7 +1301,7 @@ export default function SuperAdmin() {
                 <thead>
                   <tr>
                     {['User', 'Plan', 'Method', 'Reference', 'Amount', 'Status', 'Actions'].map(x => (
-                      <th key={x} style={{ textAlign: 'left', padding: 11, color: '#d4af37', borderBottom: '1px solid #333' }}>{x}</th>
+                      <th key={x} style={{ textAlign: 'left', padding: 11, color: '#ffb79c', borderBottom: '1px solid #333' }}>{x}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1353,7 +1355,7 @@ export default function SuperAdmin() {
                   <pre style={{
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'anywhere',
-                    background: '#09090d',
+                    background: '#0b0d19',
                     borderRadius: 10,
                     padding: 15,
                     color: '#ccc',
@@ -1435,7 +1437,7 @@ export default function SuperAdmin() {
             ))}
 
             <div style={{ marginTop: 22 }}>
-              <h3><ShieldCheck size={18} color="#d4af37" /> Security checklist</h3>
+              <h3><ShieldCheck size={18} color="#ffb79c" /> Security checklist</h3>
               {[
                 'Super Admin role is checked by the API',
                 'Admin access uses an authenticated token',
@@ -1445,13 +1447,13 @@ export default function SuperAdmin() {
                 'Audit logs and multi-factor authentication need backend support'
               ].map(item => (
                 <p key={item} style={{ color: '#bbb', fontSize: 13 }}>
-                  <Shield size={14} color="#d4af37" style={{ verticalAlign: 'middle' }} /> {item}
+                  <Shield size={14} color="#ffb79c" style={{ verticalAlign: 'middle' }} /> {item}
                 </p>
               ))}
             </div>
 
             <a href={`${API}/api/health`} target="_blank" rel="noreferrer"
-              style={{ color: '#d4af37', display: 'inline-block', marginTop: 20 }}>
+              style={{ color: '#ffb79c', display: 'inline-block', marginTop: 20 }}>
               Open API Health <ExternalLink size={14} />
             </a>
           </section>
@@ -1491,7 +1493,7 @@ export default function SuperAdmin() {
                     borderRadius: 12,
                     padding: 17
                   }}>
-                    <ItemIcon size={22} color="#d4af37" />
+                    <ItemIcon size={22} color="#ffb79c" />
                     <b style={{ display: 'block', marginTop: 10 }}>{String(title)}</b>
                     <p style={{ color: '#999', fontSize: 12, lineHeight: 1.6 }}>{String(description)}</p>
                     <Status value="PLANNED" />

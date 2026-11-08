@@ -5,7 +5,7 @@ import {
   Globe, Youtube, Instagram, Facebook, X, Check, AlertCircle
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
+import { API } from './api';
 
 type Partner = {
   id: string;

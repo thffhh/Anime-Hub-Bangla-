@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import EpisodeManager from './EpisodeManager';
 
-const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
+import { API } from './api';
 
 type User = {
   email: string;
@@ -24,6 +24,13 @@ type Anime = {
   title: string;
   slug: string;
   published: boolean;
+  originalTitle?: string | null;
+  synopsis?: string | null;
+  posterUrl?: string | null;
+  bannerUrl?: string | null;
+  releaseYear?: number | null;
+  status?: string;
+  genres?: string[];
 };
 
 type Payment = {
@@ -84,6 +91,8 @@ type ModComment = {
   animeTitle: string;
 };
 
+type ModReport = { id: string; commentId: string | null; reason: string; body: string | null; reporterName: string | null; createdAt: string };
+
 type Analytics = {
   totals?: {
     plays?: number;
@@ -93,7 +102,9 @@ type Analytics = {
   topAnime?: Array<{ title: string; plays: number }>;
 };
 
-export default function Admin() {
+type AdminView = 'content' | 'operations' | 'staff';
+
+export default function Admin({ view = 'operations' }: { view?: AdminView }) {
   const [token, setToken] = useState(
     localStorage.getItem('ahb_admin_token') || ''
   );
@@ -113,9 +124,12 @@ export default function Admin() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [modComments, setModComments] = useState<ModComment[]>([]);
+  const [modReports, setModReports] = useState<ModReport[]>([]);
 
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
+  const [editingAnime, setEditingAnime] = useState<Anime | null>(null);
+  const [animeForm, setAnimeForm] = useState({ title: '', slug: '', originalTitle: '', synopsis: '', posterUrl: '', bannerUrl: '', releaseYear: '', status: 'UPCOMING', genres: '' });
   const [reviewNote, setReviewNote] = useState<Record<string, string>>({});
 
   const [sponsorName, setSponsorName] = useState('');
@@ -172,17 +186,15 @@ export default function Admin() {
     setLoading(true);
     setError('');
 
-    const results = await Promise.allSettled([
-      api('/api/admin/summary'),
-      api<{ data: Anime[] }>('/api/admin/anime'),
-      api<{ data: Payment[] }>('/api/admin/payments'),
-      api<Revenue>('/api/admin/revenue'),
-      api<Analytics>('/api/admin/analytics'),
-      api<{ data: Sponsor[] }>('/api/admin/sponsors'),
-      api<{ data: Campaign[] }>('/api/admin/campaigns'),
-      api<{ data: Staff[] }>('/api/admin/users'),
-      api<{ comments: ModComment[] }>('/api/admin/moderation')
-    ]);
+    const paths = [
+      '/api/admin/summary', '/api/admin/anime', '/api/admin/payments',
+      '/api/admin/revenue', '/api/admin/analytics', '/api/admin/sponsors',
+      '/api/admin/campaigns', '/api/admin/users', '/api/admin/moderation'
+    ];
+    const needed = view === 'content' ? [1] : view === 'staff' ? [7] : [2, 3, 4, 5, 6, 8];
+    const results = await Promise.allSettled(paths.map((path, index) =>
+      needed.includes(index) ? api(path) : Promise.resolve(null)
+    ));
 
     const value = (index: number) =>
       results[index].status === 'fulfilled'
@@ -197,7 +209,7 @@ export default function Admin() {
     const sp = value(5) as { data: Sponsor[] } | null;
     const ca = value(6) as { data: Campaign[] } | null;
     const st = value(7) as { data: Staff[] } | null;
-    const md = value(8) as { comments: ModComment[] } | null;
+    const md = value(8) as { comments: ModComment[]; reports: ModReport[] } | null;
 
     if (s) setSummary(s);
     if (a) setAnime(a.data || []);
@@ -207,15 +219,17 @@ export default function Admin() {
     if (sp) setSponsors(sp.data || []);
     if (ca) setCampaigns(ca.data || []);
     if (st) setStaff(st.data || []);
-    if (md) setModComments(md.comments || []);
+    if (md) { setModComments(md.comments || []); setModReports(md.reports || []); }
 
-    if (results.every(item => item.status === 'rejected')) {
-      setError('Dashboard data could not be loaded. Check API access and your account permissions.');
-    } else if (results.some(item => item.status === 'rejected')) {
-      setNotice('Some dashboard sections are unavailable for your account role or are not configured.');
-    } else {
-      setNotice('');
+    const failed = needed.filter(index => results[index].status === 'rejected');
+    if (failed.length) {
+      const messages = failed.map(index => {
+        const result = results[index];
+        return `${paths[index].split('/').pop()}: ${result.status === 'rejected' ? (result.reason instanceof Error ? result.reason.message : 'request failed') : ''}`;
+      });
+      setError(`Could not load ${messages.join('; ')}. Please check API access and retry.`);
     }
+    setNotice('');
 
     setLoading(false);
   }
@@ -303,6 +317,7 @@ export default function Admin() {
     setCampaigns([]);
     setStaff([]);
     setModComments([]);
+    setModReports([]);
   }
 
   async function runAction(action: () => Promise<void>) {
@@ -356,6 +371,44 @@ export default function Admin() {
       setSlug('');
       await load();
       setNotice('Anime draft created.');
+    });
+  }
+
+  function editAnime(item: Anime) {
+    setEditingAnime(item);
+    setAnimeForm({ title: item.title, slug: item.slug, originalTitle: item.originalTitle || '', synopsis: item.synopsis || '', posterUrl: item.posterUrl || '', bannerUrl: item.bannerUrl || '', releaseYear: item.releaseYear ? String(item.releaseYear) : '', status: item.status || 'UPCOMING', genres: (item.genres || []).join(', ') });
+  }
+
+  async function saveAnime(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingAnime) return;
+    await runAction(async () => {
+      await api(`/api/admin/anime/${encodeURIComponent(editingAnime.id)}`, {
+        method: 'PUT', body: JSON.stringify({
+          title: animeForm.title.trim(), slug: animeForm.slug.trim(),
+          originalTitle: animeForm.originalTitle.trim() || null,
+          synopsis: animeForm.synopsis.trim() || null,
+          posterUrl: animeForm.posterUrl.trim() || null,
+          bannerUrl: animeForm.bannerUrl.trim() || null,
+          releaseYear: animeForm.releaseYear ? Number(animeForm.releaseYear) : null,
+          status: animeForm.status,
+          genres: [...new Set(animeForm.genres.split(',').map(value => value.trim()).filter(Boolean))]
+        })
+      });
+      setEditingAnime(null);
+      await load();
+      setNotice('Anime details saved.');
+    });
+  }
+
+  async function toggleAnime(item: Anime) {
+    if (!window.confirm(`${item.published ? 'Unpublish' : 'Publish'} "${item.title}"?`)) return;
+    await runAction(async () => {
+      await api(`/api/admin/anime/${encodeURIComponent(item.id)}`, {
+        method: 'PUT', body: JSON.stringify({ published: !item.published })
+      });
+      await load();
+      setNotice(item.published ? 'Anime unpublished.' : 'Anime published.');
     });
   }
 
@@ -458,6 +511,17 @@ export default function Admin() {
     });
   }
 
+  async function reviewReport(id: string, status: 'RESOLVED' | 'DISMISSED') {
+    if (!window.confirm(`${status === 'RESOLVED' ? 'Resolve' : 'Dismiss'} this report?`)) return;
+    await runAction(async () => {
+      await api(`/api/admin/moderation/reports/${encodeURIComponent(id)}`, {
+        method: 'PATCH', body: JSON.stringify({ status })
+      });
+      await load();
+      setNotice(`Report ${status.toLowerCase()}.`);
+    });
+  }
+
   async function updateCampaign(campaign: Campaign) {
     await runAction(async () => {
       const status = campaign.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
@@ -494,6 +558,9 @@ export default function Admin() {
     });
   }
 
+  if (token && !user) {
+    return <div className="admin-embedded-status" role="status">{error || 'Checking admin session…'}</div>;
+  }
   if (!token || !user) {
     return (
       <div className="admin-shell">
@@ -546,30 +613,9 @@ export default function Admin() {
 
   return (
     <div className="admin-shell">
-      <header className="admin-top">
-        <a className="brand" href="/">
-          <span className="brandmark">AH</span>
-          ANIME HUB BANGLA / ADMIN
-        </a>
-
-        <div className="admin-user-actions">
-          <span>{user.displayName || user.email} · {user.role}</span>
-          <button onClick={logout} className="logout">
-            <LogOut size={16} /> Sign out
-          </button>
-        </div>
-      </header>
-
       <main className="admin-main">
-        <div className="admin-heading">
-          <div>
-            <p className="eyebrow">CONTROL CENTER</p>
-            <h1>Admin Dashboard</h1>
-            <p className="muted">
-              Information shown here comes from your connected database and imported reports.
-            </p>
-          </div>
-
+        <div className="admin-toolbar">
+          <p className="muted">Manage this section using your connected API.</p>
           <button className="refresh" onClick={() => void load()} disabled={loading}>
             <RefreshCw size={15} /> {loading ? 'Loading…' : 'Refresh'}
           </button>
@@ -578,13 +624,7 @@ export default function Admin() {
         {error && <p className="error"><AlertCircle size={15} /> {error}</p>}
         {notice && <p className="success"><CheckCircle2 size={15} /> {notice}</p>}
 
-        <div className="stats">
-          <div><Film /><span>Anime records</span><strong>{summary?.anime ?? '—'}</strong></div>
-          <div><Layers /><span>Episodes</span><strong>{summary?.episodes ?? '—'}</strong></div>
-          <div><Users /><span>Users</span><strong>{summary?.users ?? '—'}</strong></div>
-        </div>
-
-        <section className="admin-panel">
+        {view === 'content' && <section className="admin-panel">
           <h2><Plus size={18} /> Add anime</h2>
 
           <form className="anime-form" onSubmit={createAnime}>
@@ -609,8 +649,9 @@ export default function Admin() {
           </form>
 
           <p className="muted tiny">New anime titles are created as unpublished drafts.</p>
-        </section>
+        </section>}
 
+        {view === 'operations' && <>
         <section className="admin-panel">
           <h2>Audience analytics · last 30 days</h2>
           <p className="muted tiny">
@@ -618,15 +659,15 @@ export default function Admin() {
           </p>
 
           <div className="stats">
-            <div><span>Play events</span><strong>{analytics?.totals?.plays ?? 0}</strong></div>
-            <div><span>Completions</span><strong>{analytics?.totals?.completions ?? 0}</strong></div>
-            <div><span>Active viewers</span><strong>{analytics?.totals?.active_viewers ?? 0}</strong></div>
+            <div><span>Play events</span><strong>{analytics?.totals?.plays ?? '—'}</strong></div>
+            <div><span>Completions</span><strong>{analytics?.totals?.completions ?? '—'}</strong></div>
+            <div><span>Active viewers</span><strong>{analytics?.totals?.active_viewers ?? '—'}</strong></div>
           </div>
 
           <h3>Top anime</h3>
           {analytics?.topAnime?.length ? analytics.topAnime.map(item => (
             <p key={item.title}>{item.title} · {item.plays} plays</p>
-          )) : <p className="muted">No playback analytics recorded yet.</p>}
+          )) : <p className="muted">{loading ? 'Loading analytics…' : analytics ? 'No playback analytics recorded yet.' : 'Analytics unavailable.'}</p>}
         </section>
 
         <section className="admin-panel">
@@ -787,10 +828,12 @@ export default function Admin() {
                 </div>
               ))}
             </div>
-          ) : <p className="muted">No payment submissions yet.</p>}
+          ) : <p className="muted">{loading ? 'Loading payments…' : error ? 'Payments may be unavailable; check the error above.' : 'No payment submissions yet.'}</p>}
         </section>
 
-        {canManageStaff && (
+        </>}
+
+        {view === 'staff' && canManageStaff && (
           <section className="admin-panel">
             <h2>Staff & permissions</h2>
 
@@ -812,16 +855,17 @@ export default function Admin() {
               <button disabled={busy}>Create staff account</button>
             </form>
 
-            {staff.map(member => (
+            {staff.filter(member => member.role !== 'USER').map(member => (
               <div className="payment-review-row" key={member.id}>
                 <b>{member.displayName || member.display_name || member.email}</b>
                 <small>{member.email}</small>
 
                 <select
                   value={member.role}
-                  disabled={busy}
+                  disabled={busy || member.role === 'SUPER_ADMIN'}
                   onChange={event => void updateStaff(member, { role: event.target.value })}
                 >
+                  {member.role === 'SUPER_ADMIN' && <option value="SUPER_ADMIN">SUPER_ADMIN</option>}
                   {['ADMIN', 'CONTENT_MANAGER', 'ADVERTISEMENT_MANAGER', 'COLLABORATION_MANAGER', 'MODERATOR', 'ANALYST'].map(role => (
                     <option key={role} value={role}>{role}</option>
                   ))}
@@ -829,7 +873,7 @@ export default function Admin() {
 
                 <select
                   value={member.status}
-                  disabled={busy}
+                  disabled={busy || member.role === 'SUPER_ADMIN'}
                   onChange={event => void updateStaff(member, { status: event.target.value })}
                 >
                   <option value="ACTIVE">ACTIVE</option>
@@ -840,7 +884,7 @@ export default function Admin() {
           </section>
         )}
 
-        {canModerate && (
+        {view === 'operations' && canModerate && (
           <section className="admin-panel">
             <h2>Comment moderation queue</h2>
 
@@ -857,10 +901,35 @@ export default function Admin() {
                   <button disabled={busy} onClick={() => void moderateComment(comment.id, 'REMOVED')}>Remove</button>
                 </div>
               </div>
-            )) : <p className="muted">No comments waiting for moderation.</p>}
+            )) : <p className="muted">{loading ? 'Loading moderation queue…' : error ? 'Moderation may be unavailable; check the error above.' : 'No comments waiting for moderation.'}</p>}
           </section>
         )}
 
+        {view === 'operations' && canModerate && <section className="admin-panel">
+          <h2>Open content reports</h2>
+          <p className="muted">Review the report and moderate the comment separately if needed. Resolving a report does not remove the comment.</p>
+          {modReports.length ? modReports.map(report => <div className="payment-review-row" key={report.id}>
+            <span><b>{report.reporterName || 'Community member'}</b><small>Reason: {report.reason}</small><small>Comment: {report.body || 'Comment unavailable'}</small><small>{new Date(report.createdAt).toLocaleString()}</small></span>
+            <div className="payment-review-actions">{report.commentId && <button disabled={busy} onClick={() => { if (window.confirm('Hide this reported comment?')) void moderateComment(report.commentId!, 'HIDDEN'); }}>Hide comment</button>}<button disabled={busy} onClick={() => void reviewReport(report.id, 'RESOLVED')}>Resolve</button><button disabled={busy} onClick={() => void reviewReport(report.id, 'DISMISSED')}>Dismiss</button></div>
+          </div>) : <p className="muted">{loading ? 'Loading reports…' : error ? 'Reports may be unavailable; check the error above.' : 'No open reports.'}</p>}
+        </section>}
+
+        {view === 'content' && <>
+        {editingAnime && <section className="admin-panel">
+          <h2>Edit anime details</h2>
+          <form className="anime-edit-form" onSubmit={saveAnime}>
+            <label>Title<input required maxLength={200} value={animeForm.title} onChange={e => setAnimeForm({ ...animeForm, title: e.target.value })} /></label>
+            <label>URL slug<input required minLength={2} pattern="[a-z0-9-]+" value={animeForm.slug} onChange={e => setAnimeForm({ ...animeForm, slug: e.target.value })} /></label>
+            <label>Original title<input maxLength={200} value={animeForm.originalTitle} onChange={e => setAnimeForm({ ...animeForm, originalTitle: e.target.value })} /></label>
+            <label>Release year<input type="number" min="1900" max="2200" value={animeForm.releaseYear} onChange={e => setAnimeForm({ ...animeForm, releaseYear: e.target.value })} /></label>
+            <label>Poster URL<input type="url" value={animeForm.posterUrl} onChange={e => setAnimeForm({ ...animeForm, posterUrl: e.target.value })} /></label>
+            <label>Banner URL<input type="url" value={animeForm.bannerUrl} onChange={e => setAnimeForm({ ...animeForm, bannerUrl: e.target.value })} /></label>
+            <label>Status<select value={animeForm.status} onChange={e => setAnimeForm({ ...animeForm, status: e.target.value })}>{['UPCOMING', 'ONGOING', 'COMPLETED', 'HIATUS'].map(status => <option key={status}>{status}</option>)}</select></label>
+            <label>Genres (comma separated)<input value={animeForm.genres} onChange={e => setAnimeForm({ ...animeForm, genres: e.target.value })} /></label>
+            <label className="anime-edit-wide">Synopsis<textarea maxLength={10000} value={animeForm.synopsis} onChange={e => setAnimeForm({ ...animeForm, synopsis: e.target.value })} /></label>
+            <div className="anime-edit-wide anime-edit-actions"><button className="admin-submit" disabled={busy}>Save changes</button><button className="icon-button" type="button" onClick={() => setEditingAnime(null)}>Cancel</button></div>
+          </form>
+        </section>}
         <EpisodeManager token={token} anime={anime} onChanged={() => void load()} />
 
         <section className="admin-panel">
@@ -874,11 +943,15 @@ export default function Admin() {
                   <span className={item.published ? 'live' : 'draft'}>
                     {item.published ? 'Published' : 'Draft'}
                   </span>
+                  <button className="icon-button" disabled={busy} onClick={() => editAnime(item)}>Edit</button>
+                  <button className="icon-button" disabled={busy} onClick={() => void toggleAnime(item)}>{item.published ? 'Unpublish' : 'Publish'}</button>
                 </div>
               ))}
             </div>
-          ) : <p className="muted">No anime records yet.</p>}
+          ) : <p className="muted">{loading ? 'Loading anime…' : error ? 'Anime catalogue is unavailable.' : 'No anime records yet.'}</p>}
         </section>
+
+        </>}
 
         <div className="secure-note">
           <ShieldCheck size={18} />

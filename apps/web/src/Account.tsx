@@ -6,7 +6,7 @@ import {
   RefreshCw, Shield, UserRound, X
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
+import { API } from './api';
 
 type User = {
   id: string;
@@ -340,7 +340,7 @@ export default function Account() {
               <ChevronRight size={18} />
             </button>
 
-            {authMessage && <div className="ah-form-message" role="status">{authMessage}</div>}
+            {(authMessage || pageError) && <div className="ah-form-message" role="status">{authMessage || pageError}</div>}
 
             <div className="ah-auth-switch">
               {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
@@ -669,4 +669,13 @@ const styles = `
 @media(max-width:900px){.ah-auth-grid{grid-template-columns:1fr 400px;gap:35px}.ah-dashboard-layout{grid-template-columns:220px 1fr}.ah-stats-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:680px){.ah-account-auth{padding:22px 17px}.ah-auth-grid{grid-template-columns:1fr;margin:45px auto 35px;gap:35px}.ah-auth-intro h1{font-size:48px;margin:18px 0}.ah-auth-intro>p{font-size:13px}.ah-auth-perks{gap:15px;margin-top:25px}.ah-auth-card{padding:24px 20px}.ah-auth-footer{font-size:8px}.ah-topbar{height:65px;padding:0 15px}.ah-logo{font-size:10px;gap:8px}.ah-logo-mark{width:36px;height:36px}.ah-logo small{font-size:7px}.ah-home-link{display:none}.ah-mobile-menu{display:grid!important}.ah-icon-btn{background:none;border:0;color:#ddd;padding:5px}.ah-user-chip{font-size:0}.ah-user-chip>span{font-size:12px}.ah-dashboard-layout{display:block}.ah-sidebar{position:fixed;z-index:9;top:65px;bottom:0;left:0;width:270px;transform:translateX(-105%);transition:transform .25s;box-shadow:15px 0 35px #0008}.ah-sidebar.is-open{transform:translateX(0)}.ah-main{padding:27px 15px}.ah-page-heading{align-items:flex-start}.ah-page-heading h1{font-size:29px}.ah-page-heading p{font-size:10px;line-height:1.5;max-width:250px}.ah-refresh-btn{font-size:0;padding:10px}.ah-refresh-btn svg{width:17px;height:17px}.ah-stats-grid{gap:9px}.ah-stat-card{padding:13px 10px;gap:9px}.ah-stat-card>span{width:33px;height:33px}.ah-stat-card b{font-size:19px}.ah-stat-card small{font-size:9px}.ah-two-columns{grid-template-columns:1fr;gap:0}.ah-panel{padding:17px 14px}.ah-panel h2{font-size:20px}.ah-history-thumb{width:80px;height:55px}.ah-history-card{gap:10px}.ah-history-info b{font-size:11px}.ah-history-info span{font-size:9px}.ah-membership-card{align-items:flex-start;flex-wrap:wrap;padding:15px}.ah-membership-dates{width:100%;display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ah-membership-dates b{margin:0 12px 0 0}.ah-profile-details{grid-template-columns:1fr;gap:16px}.ah-dashboard-footer{font-size:8px}.ah-favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ah-favorite-poster{height:190px}}
 @media(max-width:380px){.ah-stat-card{display:block}.ah-stat-card>span{margin-bottom:9px}.ah-auth-intro h1{font-size:42px}.ah-auth-card{padding:20px 15px}}
+
+/* Account workspace refresh */
+.ah-account-auth,.ah-dashboard{--gold:#ffb79c;--gold2:#ffd2bd;--bg:#0b0d19;--panel:#171a2a;--line:rgba(193,201,229,.13);background:#0b0d19}
+.ah-account-auth{background:linear-gradient(90deg,#0b0d19f2,#0b0d19d9),url('/hero-world.jpg') center/cover fixed}
+.ah-auth-intro h1,.ah-page-heading h1{font-family:'Inter',sans-serif;font-weight:800;letter-spacing:-2px}
+.ah-auth-intro h1 em{font-family:'Playfair Display',serif}
+.ah-auth-card,.ah-panel,.ah-stat-card{background:#171a2a;border-color:#ffffff16;border-radius:16px;box-shadow:0 18px 55px #0003}
+.ah-auth-card{padding:38px}.ah-input-wrap input{background:#0d101d;border-radius:10px}.ah-primary-btn{border-radius:10px}.ah-topbar,.ah-sidebar{background:#101320}.ah-logo-mark{background:#ffb79c;color:#251920;border:0;font-family:Inter,sans-serif;font-weight:900}.ah-nav button.active,.ah-nav button:hover{background:#ffb79c1c}.ah-main{background:radial-gradient(circle at 90% 0%,#80547320,transparent 40%)}
+@media(max-width:680px){.ah-auth-card{padding:25px 20px}.ah-auth-intro h1{font-size:43px}.ah-auth-grid{margin-top:38px}}
 `;

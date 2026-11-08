@@ -6,7 +6,7 @@ import {
   MessageCircle, Clock3, RefreshCw
 } from 'lucide-react';
 
-const API = (import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com').replace(/\/$/, '');
+import { API } from './api';
 
 type Episode = {
   id: string;
@@ -90,6 +90,7 @@ function mapAnime(raw: any): Anime {
 function Player({ episode }: { episode: Episode }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSaved = useRef(0);
+  const playRecorded = useRef(false);
   const [source, setSource] = useState<PlaybackSource | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -103,6 +104,7 @@ function Player({ episode }: { episode: Episode }) {
       setError('');
       setSource(null);
       lastSaved.current = 0;
+      playRecorded.current = false;
 
       try {
         const token = getToken();
@@ -156,6 +158,19 @@ function Player({ episode }: { episode: Episode }) {
       },
       body: JSON.stringify({ episodeId: episode.id, positionSeconds, completed })
     }).catch(err => console.error('Watch progress could not be saved:', err));
+  };
+
+  // Native video exposes playback events. Embedded providers do not, so do not
+  // invent analytics for iframe loads or guest viewers.
+  const recordPlayback = (eventType: 'PLAY' | 'COMPLETE') => {
+    const token = getToken();
+    if (!token) return;
+    const seconds = Math.min(86400, Math.max(0, Math.floor(videoRef.current?.currentTime || 0)));
+    fetch(`${API}/api/user/playback-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ episodeId: episode.id, eventType, watchedSeconds: seconds })
+    }).catch(err => console.error('Playback event could not be saved:', err));
   };
 
   const id = source?.providerVideoId || '';
@@ -249,9 +264,10 @@ function Player({ episode }: { episode: Episode }) {
           playsInline
           preload="metadata"
           src={isHls ? undefined : id}
+          onPlay={() => { if (!playRecorded.current) { playRecorded.current = true; recordPlayback('PLAY'); } }}
           onTimeUpdate={() => saveProgress()}
           onPause={() => saveProgress()}
-          onEnded={() => saveProgress(true)}
+          onEnded={() => { saveProgress(true); recordPlayback('COMPLETE'); }}
         />
       </div>
     );
@@ -288,9 +304,11 @@ function Community({ animeId }: { animeId: string }) {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   async function load() {
     setLoading(true);
+    setLoadError(false);
     try {
       const [commentResponse, reviewResponse] = await Promise.all([
         fetch(`${API}/api/user/comments/${encodeURIComponent(animeId)}`),
@@ -302,10 +320,12 @@ function Community({ animeId }: { animeId: string }) {
         reviewResponse.json()
       ]);
 
+      if (!commentResponse.ok || !reviewResponse.ok) throw new Error('Community information unavailable');
       setComments(commentResponse.ok && Array.isArray(commentData.data) ? commentData.data : []);
       setReviews(reviewResponse.ok && Array.isArray(reviewData.data) ? reviewData.data : []);
     } catch {
-      setNotice('Community information could not be loaded.');
+      setLoadError(true);
+      setNotice('Community information could not be loaded. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -341,6 +361,30 @@ function Community({ animeId }: { animeId: string }) {
     } finally {
       setSending(false);
     }
+  }
+
+  async function reportComment(id: string) {
+    const token = getToken();
+    if (!token) { window.location.href = '/account'; return; }
+    const reason = window.prompt('Why are you reporting this comment? (at least 3 characters)');
+    if (reason === null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 500) {
+      setNotice('Please enter a reason between 3 and 500 characters.');
+      return;
+    }
+    setSending(true);
+    setNotice('');
+    try {
+      const response = await fetch(`${API}/api/user/comments/${encodeURIComponent(id)}/report`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit report.');
+      setNotice('Report submitted for moderation.');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not submit report.');
+    } finally { setSending(false); }
   }
 
   async function submitReview(event: FormEvent) {
@@ -402,7 +446,7 @@ function Community({ animeId }: { animeId: string }) {
                 <small>{new Date(item.createdAt).toLocaleDateString()}</small>
               </article>
             ))}
-            {!loading && !reviews.length && <p className="muted">No reviews yet. Be the first to review.</p>}
+            {!loading && !loadError && !reviews.length && <p className="muted">No reviews yet. Be the first to review.</p>}
           </div>
         </div>
 
@@ -418,9 +462,10 @@ function Community({ animeId }: { animeId: string }) {
                 <b>{item.displayName || 'Anime fan'}</b>
                 <p>{item.body}</p>
                 <small>{new Date(item.createdAt).toLocaleDateString()}</small>
+                <button type="button" className="report-comment" disabled={sending} onClick={() => void reportComment(item.id)}>Report comment</button>
               </article>
             ))}
-            {!loading && !comments.length && <p className="muted">No comments yet. Start the conversation.</p>}
+            {!loading && !loadError && !comments.length && <p className="muted">No comments yet. Start the conversation.</p>}
           </div>
         </div>
       </div>
@@ -432,7 +477,10 @@ function Community({ animeId }: { animeId: string }) {
 }
 
 export default function AnimeDetails() {
-  const slug = decodeURIComponent(window.location.pathname.split('/').filter(Boolean)[1] || '');
+  const slug = (() => {
+    const value = window.location.pathname.split('/').filter(Boolean)[1] || '';
+    try { return decodeURIComponent(value); } catch { return value; }
+  })();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selected, setSelected] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);

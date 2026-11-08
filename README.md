@@ -77,3 +77,6 @@ Adsterra metrics are manually imported from your real publisher report; no autom
 The latest source includes staff-management endpoints, role/status control, comment moderation, comment reports, ratings/reviews, user notification endpoints, and premium episode playback checks. Run the updated `database/schema.sql` against the PostgreSQL database before starting the updated API.
 
 **Production note:** This remains a starter codebase. Payment gateways, automatic Adsterra sync, Bunny Stream, email/push delivery, Android signing, provider-side signed playback and production security review still need real provider credentials and deployment testing.
+
+## Launch checklist
+See [docs/LAUNCH-CHECKLIST-BN.md](docs/LAUNCH-CHECKLIST-BN.md) for the remaining deployment and verification steps in Bangla. Run `npm test` for API smoke checks; these do not replace database and provider integration testing.
