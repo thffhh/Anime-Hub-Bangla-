@@ -1,4 +1,5 @@
 name: Build Anime Hub Bangla APK
+
 on:
   workflow_dispatch:
   push:
@@ -8,6 +9,10 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      VITE_API_URL: https://anime-hub-bangla.onrender.com
 
     steps:
       - name: Checkout repository
@@ -24,30 +29,32 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android SDK
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
       - name: Accept Android SDK Licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install Android SDK packages
         run: |
-          sdkmanager "platform-tools" \
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+      - name: Install Android SDK Packages
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm install
 
-      - name: Build shared package
+      - name: Build Shared Package
         run: npm run build -w packages/shared
 
-      - name: Build website
+      - name: Build Website
         run: npm run build -w apps/web
-        env:
-          VITE_API_URL: https://anime-hub-bangla.onrender.com
 
-      - name: Create Android project
+      - name: Create Android Project
         working-directory: apps/web
         run: npx cap add android
 
