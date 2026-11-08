@@ -13,7 +13,8 @@
     "android:add": "npm run android:add -w apps/web",
     "android:sync": "npm run android:sync -w apps/web",
     "android:open": "npm run android:open -w apps/web",
-    "test": "npm run build -w apps/api && node apps/api/test/smoke.mjs"
+    "test": "npm run build -w apps/api && node apps/api/test/smoke.mjs",
+    "android:build:debug": "bash scripts/build-android-debug.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

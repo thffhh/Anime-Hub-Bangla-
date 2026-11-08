@@ -88,7 +88,7 @@ router.get('/public/homepage', async (_req, res) => {
           'siteName', 'tagline', 'announcement',
           'heroTitle', 'heroSubtitle', 'contactEmail',
           'maintenanceMode', 'showMovies', 'showStudios',
-          'showPartners', 'showAbout', 'accentTheme',
+          'showPartners', 'showAbout', 'accentTheme', 'accentColor',
           'monthlyPriceBdt', 'yearlyPriceBdt', 'paymentInstructions', 'bkashNumber', 'nagadNumber', 'heroCovers', 'androidApkUrl', 'androidVersion'
         )
       `)

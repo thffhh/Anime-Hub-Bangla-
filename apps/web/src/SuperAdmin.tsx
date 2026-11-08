@@ -55,6 +55,7 @@ type SettingsData = {
   showPartners: boolean;
   showAbout: boolean;
   accentTheme: 'peach' | 'violet' | 'mint';
+  accentColor: string;
   androidApkUrl: string;
   androidVersion: string;
   paymentInstructions: string;
@@ -77,6 +78,7 @@ const defaultSettings: SettingsData = {
   showPartners: true,
   showAbout: true,
   accentTheme: 'peach',
+  accentColor: '',
   androidApkUrl: '',
   androidVersion: '',
   paymentInstructions: '',
@@ -1090,6 +1092,8 @@ export default function SuperAdmin() {
                 <legend>Appearance &amp; premium pricing</legend>
                 <p>Choose the homepage accent and display prices. Zero means not configured. Prices and instructions enable manual submissions, not automatic payment checkout. Never enter secrets.</p>
                 <label>Accent theme <select value={settings.accentTheme} onChange={e => setSettings(old => ({ ...old, accentTheme: e.target.value as SettingsData['accentTheme'] }))}><option value="peach">Peach</option><option value="violet">Violet</option><option value="mint">Mint</option></select></label>
+                <label>Custom homepage accent <input type="color" value={settings.accentColor || ({ peach: '#ffb79c', violet: '#cab5ff', mint: '#91e3ce' }[settings.accentTheme])} onChange={e => setSettings(old => ({ ...old, accentColor: e.target.value }))} /></label>
+                <button type="button" className="sa-reset-accent" onClick={() => setSettings(old => ({ ...old, accentColor: '' }))}>Use selected preset</button>
                 <label>bKash number <input type="tel" inputMode="tel" pattern="(01|\+8801)[3-9][0-9]{8}" maxLength={14} value={settings.bkashNumber} onChange={e => setSettings(old => ({ ...old, bkashNumber: e.target.value.trim() }))} placeholder="01XXXXXXXXX" /></label>
                 <label>Nagad number <input type="tel" inputMode="tel" pattern="(01|\+8801)[3-9][0-9]{8}" maxLength={14} value={settings.nagadNumber} onChange={e => setSettings(old => ({ ...old, nagadNumber: e.target.value.trim() }))} placeholder="01XXXXXXXXX" /></label>
                 <p>Numbers are public and visible to members. Use 01… or +8801… with no spaces. Leave blank to disable a method. Never enter PINs or passwords.</p>
@@ -1117,7 +1121,7 @@ export default function SuperAdmin() {
             <div style={{ borderTop: '1px solid #333', marginTop: 25, paddingTop: 20 }}>
               <h3><Palette size={18} color="#ffb79c" /> Website Management Areas</h3>
               <p style={{ color: '#999', lineHeight: 1.7 }}>
-                The controls above manage homepage text and section visibility. Logo and image library, homepage section ordering, SEO metadata,
+                The controls above manage homepage text, colours and section visibility. Logo and image library, homepage section ordering, SEO metadata,
                 social links, custom pages, theme settings, navigation menus,
                 legal pages and announcement scheduling can be added as dedicated
                 CMS modules. Only the settings fields connected to the backend

@@ -1228,6 +1228,7 @@ const siteSettingsSchema = z.object({
   showPartners: z.boolean().optional(),
   showAbout: z.boolean().optional(),
   accentTheme: z.enum(['peach', 'violet', 'mint']).optional(),
+  accentColor: z.string().regex(/^(#[0-9a-fA-F]{6})?$/).optional(),
   androidApkUrl: z.string().trim().max(2000).refine(value => !value || isPublicHttpsUrl(value), 'Use a valid HTTPS download URL without credentials').optional(),
   androidVersion: z.string().trim().max(40).optional(),
   paymentInstructions: z.string().trim().max(1000).optional(),

@@ -93,6 +93,8 @@ function Home() {
   const [partnerError, setPartnerError] = useState(false);
   const [covers, setCovers] = useState<{ title: string; imageUrl: string; animeSlug: string; episodeId: string }[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
+  const [slidePaused, setSlidePaused] = useState(false);
+  const [customAccent, setCustomAccent] = useState('');
   const [accentTheme, setAccentTheme] = useState<'peach' | 'violet' | 'mint'>('peach');
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -185,6 +187,7 @@ function Home() {
             if (typeof raw[key] === 'boolean') safeSettings[key] = raw[key];
           }
           setSiteSettings(safeSettings);
+          if (typeof raw.accentColor === 'string' && /^#[0-9a-f]{6}$/i.test(raw.accentColor)) setCustomAccent(raw.accentColor);
           if (['peach', 'violet', 'mint'].includes(raw.accentTheme)) setAccentTheme(raw.accentTheme);
           if (Array.isArray(raw.heroCovers)) {
             setCovers(raw.heroCovers.filter((cover: any) => {
@@ -205,6 +208,14 @@ function Home() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (covers.length < 2 || slidePaused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) setCoverIndex(index => (index + 1) % covers.length);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, [covers.length, slidePaused]);
 
   const genres = useMemo(() => {
     const values = items.flatMap(item => item.genres);
@@ -246,7 +257,7 @@ function Home() {
   ];
 
   return (
-    <div className={`app theme-${accentTheme}`}>
+    <div className={`app theme-${accentTheme}`} style={customAccent ? { '--accent': customAccent } as React.CSSProperties : undefined}>
       <header className="top" id="top">
         <a className="brand" href="/">
           <span className="brandmark">AH</span>
@@ -327,39 +338,15 @@ function Home() {
 
       <main>
         {siteSettings.announcement && <div className="site-announcement" role="status">{siteSettings.announcement}</div>}
-        <section className={`hero ${cover ? 'has-cover' : ''}`} style={cover ? { backgroundImage: `linear-gradient(90deg, rgba(12,15,29,.97) 0%, rgba(12,15,29,.85) 36%, rgba(12,15,29,.18) 100%), url(${JSON.stringify(cover.imageUrl)})` } : undefined}>
-          {cover && <a className="hero-cover-link" href={coverLink} aria-label={`Watch ${cover.title}`} />}
-          <div className="hero-copy">
-            <div className="eyebrow">
-              <span /> {siteSettings.tagline || 'BANGLA ANIME ENTERTAINMENT PLATFORM'}
-            </div>
-
-            <h1>
-              {cover ? cover.title : (siteSettings.heroTitle || <>Your Anime.<br /><em>Your Language.</em></>)}
-            </h1>
-
-            <p>
-              {siteSettings.heroSubtitle || 'Discover anime, explore Bangla dubbing projects and connect with creative studios. Your anime community starts here.'}
-            </p>
-
-            <div className="hero-buttons">
-              <a className="primary" href={cover ? coverLink : '#anime'}>
-                <Play size={17} fill="currentColor" />
-                {cover ? 'Watch episode' : 'Explore Anime'}
-              </a>
-
-              {siteSettings.showStudios !== false && <a className="secondary" href="#studios">
-                Discover Studios <ChevronRight size={16} />
-              </a>}
-            </div>
-
-            <small className="status">{apiState}</small>
-          </div>
-
-          {covers.length > 1 && <div className="hero-slide-controls" aria-label="Featured covers"><button type="button" aria-label="Previous cover" onClick={() => setCoverIndex((coverIndex + covers.length - 1) % covers.length)}><ChevronLeft size={18} /></button><span aria-live="polite">{coverIndex + 1} / {covers.length}</span><button type="button" aria-label="Next cover" onClick={() => setCoverIndex((coverIndex + 1) % covers.length)}><ChevronRight size={18} /></button></div>}
-          <div className="hero-art" aria-hidden="true">
-            <div className="hero-art-caption"><span>STORIES WITHOUT BORDERS</span><strong>একসাথে দেখি,<br />একসাথে স্বপ্ন দেখি।</strong><small>ANIME HUB BANGLA · আপনার নিজের জগৎ</small></div>
-          </div>
+        <section className="cover-slideshow" aria-label="Featured anime covers" aria-roledescription="carousel" onMouseEnter={() => setSlidePaused(true)} onMouseLeave={() => setSlidePaused(false)} onFocus={() => setSlidePaused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSlidePaused(false); }}>
+          <a href={cover ? coverLink : '#anime'} className="cover-slide" aria-label={cover ? `Watch ${cover.title}` : 'Explore the anime catalogue'}>
+            <img key={cover?.imageUrl || 'default'} src={cover?.imageUrl || '/hero-world.jpg'} alt={cover ? cover.title : 'Explore the anime catalogue'} onError={event => { if (cover && event.currentTarget.getAttribute('src') !== '/hero-world.jpg') event.currentTarget.src = '/hero-world.jpg'; }} />
+          </a>
+          {covers.length > 1 && <div className="cover-controls" aria-label="Slideshow controls">
+            <button type="button" aria-label="Previous cover" onClick={() => setCoverIndex(index => (index + covers.length - 1) % covers.length)}><ChevronLeft size={18} /></button>
+            <span aria-live="polite">{coverIndex + 1} / {covers.length}</span>
+            <button type="button" aria-label="Next cover" onClick={() => setCoverIndex(index => (index + 1) % covers.length)}><ChevronRight size={18} /></button>
+          </div>}
         </section>
 
         <section className="trust" aria-label="About Anime Hub Bangla">
