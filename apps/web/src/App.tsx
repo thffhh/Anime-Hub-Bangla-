@@ -132,7 +132,7 @@ function Home() {
       setApiState('Catalogue connection unavailable');
       setItems([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }
 
@@ -157,7 +157,7 @@ function Home() {
       console.error('Partner loading error:', err);
       setPartners([]);
     } finally {
-      setPartnerLoading(false);
+      if (!signal?.aborted) setPartnerLoading(false);
     }
   }
 
@@ -169,7 +169,13 @@ function Home() {
     fetch(`${API}/api/cms/public/homepage`, { signal: controller.signal })
       .then(response => response.ok ? response.json() : null)
       .then(result => {
-        if (result?.settings && typeof result.settings === 'object') setSiteSettings(result.settings);
+        if (result?.settings && typeof result.settings === 'object') {
+          const safeSettings: Record<string, string> = {};
+          for (const key of ['siteName', 'tagline', 'heroTitle', 'heroSubtitle', 'announcement']) {
+            if (typeof result.settings[key] === 'string') safeSettings[key] = result.settings[key];
+          }
+          setSiteSettings(safeSettings);
+        }
       })
       .catch(err => { if (err?.name !== 'AbortError') console.warn('Homepage settings unavailable:', err); });
 
@@ -308,31 +314,21 @@ function Home() {
             <small className="status">{apiState}</small>
           </div>
 
-          <div className="hero-art">
-            <div className="orbit orbit-one" />
-            <div className="orbit orbit-two" />
-
-            <div className="poster-ghost">
-              <Film size={76} />
-              <span>ANIME<br />HUB</span>
-            </div>
-
-            <div className="floating-tag">
-              বাংলা অ্যানিমে
-            </div>
+          <div className="hero-art" aria-hidden="true">
+            <div className="hero-art-caption"><span>STORIES WITHOUT BORDERS</span><strong>একসাথে দেখি,<br />একসাথে স্বপ্ন দেখি।</strong><small>ANIME HUB BANGLA · আপনার নিজের জগৎ</small></div>
           </div>
         </section>
 
-        <section className="trust">
-          <div><Shield /> Copyright-conscious platform</div>
-          <div><Tv /> Anime discovery experience</div>
-          <div><Star /> Community-driven platform</div>
+        <section className="trust" aria-label="About Anime Hub Bangla">
+          <div><Shield /><span><b>MADE WITH CARE</b>Copyright-conscious platform</span></div>
+          <div><Tv /><span><b>FIND YOUR NEXT STORY</b>Anime discovery experience</span></div>
+          <div><Star /><span><b>BETTER TOGETHER</b>Community-driven platform</span></div>
         </section>
 
         <section className="catalog" id="anime">
           <div className="section-head">
             <div>
-              <div className="eyebrow">EXPLORE THE LIBRARY</div>
+              <div className="eyebrow">01 / EXPLORE THE LIBRARY</div>
               <h2>Discover <em>Anime</em></h2>
             </div>
 
@@ -342,14 +338,7 @@ function Home() {
             </span>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 12,
-              marginBottom: 28
-            }}
-          >
+          <div className="catalog-filters">
             <label
               style={{
                 display: 'flex',
@@ -469,7 +458,7 @@ function Home() {
         <section className="catalog" id="movies">
           <div className="section-head">
             <div>
-              <div className="eyebrow">FEATURE FILMS</div>
+              <div className="eyebrow">02 / FEATURE FILMS</div>
               <h2>Anime <em>Movies</em></h2>
             </div>
           </div>
@@ -490,7 +479,7 @@ function Home() {
 
         <section className="feature" id="studios">
           <div>
-            <div className="eyebrow">THE CREATIVE COMMUNITY</div>
+            <div className="eyebrow">03 / THE CREATIVE COMMUNITY</div>
 
             <h2>
               One hub for
@@ -530,7 +519,7 @@ function Home() {
         <section className="catalog" id="partners">
           <div className="section-head">
             <div>
-              <div className="eyebrow">OUR NETWORK</div>
+              <div className="eyebrow">04 / OUR NETWORK</div>
               <h2>Collaboration <em>Partners</em></h2>
             </div>
 

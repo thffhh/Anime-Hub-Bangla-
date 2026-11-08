@@ -304,9 +304,11 @@ function Community({ animeId }: { animeId: string }) {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   async function load() {
     setLoading(true);
+    setLoadError(false);
     try {
       const [commentResponse, reviewResponse] = await Promise.all([
         fetch(`${API}/api/user/comments/${encodeURIComponent(animeId)}`),
@@ -318,10 +320,12 @@ function Community({ animeId }: { animeId: string }) {
         reviewResponse.json()
       ]);
 
+      if (!commentResponse.ok || !reviewResponse.ok) throw new Error('Community information unavailable');
       setComments(commentResponse.ok && Array.isArray(commentData.data) ? commentData.data : []);
       setReviews(reviewResponse.ok && Array.isArray(reviewData.data) ? reviewData.data : []);
     } catch {
-      setNotice('Community information could not be loaded.');
+      setLoadError(true);
+      setNotice('Community information could not be loaded. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -442,7 +446,7 @@ function Community({ animeId }: { animeId: string }) {
                 <small>{new Date(item.createdAt).toLocaleDateString()}</small>
               </article>
             ))}
-            {!loading && !reviews.length && <p className="muted">No reviews yet. Be the first to review.</p>}
+            {!loading && !loadError && !reviews.length && <p className="muted">No reviews yet. Be the first to review.</p>}
           </div>
         </div>
 
@@ -461,7 +465,7 @@ function Community({ animeId }: { animeId: string }) {
                 <button type="button" className="report-comment" disabled={sending} onClick={() => void reportComment(item.id)}>Report comment</button>
               </article>
             ))}
-            {!loading && !comments.length && <p className="muted">No comments yet. Start the conversation.</p>}
+            {!loading && !loadError && !comments.length && <p className="muted">No comments yet. Start the conversation.</p>}
           </div>
         </div>
       </div>
