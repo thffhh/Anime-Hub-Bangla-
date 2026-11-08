@@ -15,35 +15,37 @@ export function signToken(payload: { userId: string; role: Role; email: string }
   return jwt.sign(payload, secret(), { expiresIn: '8h', issuer: 'anime-hub-bangla' });
 }
 
-export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+async function authenticate(req: AuthRequest, res: Response, next: NextFunction, optional: boolean) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    return optional ? next() : res.status(401).json({ error: 'Authentication required' });
+  }
+  let decoded: jwt.JwtPayload;
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
-    const decoded = jwt.verify(header.slice(7), secret(), { issuer: 'anime-hub-bangla' }) as jwt.JwtPayload;
-    if (!decoded.userId || !decoded.role || !decoded.email) return res.status(401).json({ error: 'Invalid session' });
-    if (!pool) return res.status(503).json({ error: 'Database not configured' });
-    const result = await pool.query('SELECT id, role, status FROM users WHERE id=$1', [decoded.userId]);
-    const user = result.rows[0];
-    if (!user || user.status !== 'ACTIVE' || user.role !== decoded.role) return res.status(401).json({ error: 'Session expired or account changed' });
-    req.auth = { userId: user.id, role: user.role, email: decoded.email };
-    next();
+    decoded = jwt.verify(header.slice(7), secret(), { issuer: 'anime-hub-bangla' }) as jwt.JwtPayload;
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
-}
-
-export async function optionalAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!decoded.userId || !decoded.role || !decoded.email) return res.status(401).json({ error: 'Invalid session' });
+  if (!pool) return res.status(503).json({ error: 'Database not configured' });
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) return next();
-    const decoded = jwt.verify(header.slice(7), secret(), { issuer: 'anime-hub-bangla' }) as jwt.JwtPayload;
-    if (!decoded.userId || !decoded.role || !decoded.email || !pool) return res.status(401).json({ error: 'Invalid session' });
     const result = await pool.query('SELECT id, role, status FROM users WHERE id=$1', [decoded.userId]);
     const user = result.rows[0];
     if (!user || user.status !== 'ACTIVE' || user.role !== decoded.role) return res.status(401).json({ error: 'Session expired or account changed' });
     req.auth = { userId: user.id, role: user.role, email: decoded.email };
-    next();
-  } catch { return res.status(401).json({ error: 'Invalid or expired session' }); }
+    return next();
+  } catch (error) {
+    console.error('Authentication database lookup failed:', error);
+    return res.status(503).json({ error: 'Authentication service unavailable' });
+  }
+}
+
+export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  return authenticate(req, res, next, false);
+}
+
+export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  return authenticate(req, res, next, true);
 }
 
 export function requireRoles(...roles: Role[]) {

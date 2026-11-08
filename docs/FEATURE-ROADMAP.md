@@ -41,3 +41,8 @@ Never publish unlicensed anime or use provider keys in browser code. Do not desc
 - Email/SMS/push delivery, password reset and email verification provider.
 - Formal security review, rate limiting/WAF, backups, monitoring, accessibility and load testing.
 - Android native build, signing key and Play Store release.
+
+## Current playback and homepage limitations
+- Native MP4/WebM/HLS playback sends authenticated play/completion events; embedded players do not expose those events here and are not included in those counts. The figures are not a count of all viewing.
+- Homepage settings use the public CMS endpoint when available, with built-in defaults on failure. The maintenance flag is stored but does not block access. Do not rely on it for maintenance or security.
+- The Super Admin anime editor and episode editor require deployment of both the updated web app and API; nullable fields can then be cleared. Test with a configured database before publishing.

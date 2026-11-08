@@ -22,10 +22,7 @@ import SuperAdmin from './SuperAdmin';
 import AnimeDetails from './AnimeDetails';
 import Account from './Account';
 
-const API = (
-  import.meta.env.VITE_API_URL ||
-  'https://anime-hub-bangla.onrender.com'
-).replace(/\/$/, '');
+import { API } from './api';
 
 type Anime = {
   id: string;
@@ -95,6 +92,7 @@ function Home() {
   const [partnerLoading, setPartnerLoading] = useState(true);
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<{ siteName?: string; tagline?: string; heroTitle?: string; heroSubtitle?: string; announcement?: string }>({});
 
   async function loadAnime(signal?: AbortSignal) {
     setLoading(true);
@@ -168,6 +166,12 @@ function Home() {
 
     loadAnime(controller.signal);
     loadPartners(controller.signal);
+    fetch(`${API}/api/cms/public/homepage`, { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(result => {
+        if (result?.settings && typeof result.settings === 'object') setSiteSettings(result.settings);
+      })
+      .catch(err => { if (err?.name !== 'AbortError') console.warn('Homepage settings unavailable:', err); });
 
     return () => controller.abort();
   }, []);
@@ -208,7 +212,7 @@ function Home() {
       <header className="top" id="top">
         <a className="brand" href="/">
           <span className="brandmark">AH</span>
-          <span>ANIME HUB <b>BANGLA</b></span>
+          <span>{siteSettings.siteName || <>ANIME HUB <b>BANGLA</b></>}</span>
         </a>
 
         <nav aria-label="Main navigation">
@@ -275,22 +279,19 @@ function Home() {
       )}
 
       <main>
+        {siteSettings.announcement && <div className="site-announcement" role="status">{siteSettings.announcement}</div>}
         <section className="hero">
           <div className="hero-copy">
             <div className="eyebrow">
-              <span /> BANGLA ANIME ENTERTAINMENT PLATFORM
+              <span /> {siteSettings.tagline || 'BANGLA ANIME ENTERTAINMENT PLATFORM'}
             </div>
 
             <h1>
-              Your Anime.
-              <br />
-              <em>Your Language.</em>
+              {siteSettings.heroTitle || <>Your Anime.<br /><em>Your Language.</em></>}
             </h1>
 
             <p>
-              Discover anime, explore Bangla dubbing projects
-              and connect with creative studios. Your anime
-              community starts here.
+              {siteSettings.heroSubtitle || 'Discover anime, explore Bangla dubbing projects and connect with creative studios. Your anime community starts here.'}
             </p>
 
             <div className="hero-buttons">

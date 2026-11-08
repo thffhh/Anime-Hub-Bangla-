@@ -12,10 +12,7 @@ import {
 import Admin from './Admin';
 import PartnerManagement from './PartnerManagement';
 
-const API = (
-  import.meta.env.VITE_API_URL ||
-  'https://anime-hub-bangla.onrender.com'
-).replace(/\/$/, '');
+import { API } from './api';
 
 type RoleUser = {
   id: string;
@@ -357,10 +354,15 @@ export default function SuperAdmin() {
 
         setUser(result.user);
       })
-      .catch(() => {
+      .catch(err => {
         if (!active) return;
-        logout();
-        setError('Your session expired. Please sign in again.');
+        const message = err instanceof Error ? err.message : '';
+        if (/expired|invalid session|authentication required|account changed/i.test(message)) {
+          logout();
+          setError('Your session expired. Please sign in again.');
+        } else {
+          setError('Could not verify your session. Check your connection and refresh; your session has been kept.');
+        }
       });
 
     return () => {
@@ -1041,7 +1043,7 @@ export default function SuperAdmin() {
                     maintenanceMode: e.target.checked
                   }))}
                 />
-                Maintenance mode setting
+                Maintenance mode setting (stored only; does not restrict access)
               </label>
 
               <button disabled={loading} style={buttonStyle}>
@@ -1083,7 +1085,7 @@ export default function SuperAdmin() {
             <div style={{ color: '#aaa', marginBottom: 15 }}>
               {anime.length} anime records loaded from the connected API.
             </div>
-            <Admin />
+            <Admin view="content" />
           </section>
         )}
 
@@ -1124,7 +1126,7 @@ export default function SuperAdmin() {
                 );
               })}
             </div>
-            <Admin />
+            <Admin view="operations" />
           </section>
         )}
 
@@ -1247,7 +1249,7 @@ export default function SuperAdmin() {
                 permissions must be performed through the protected staff API.
               </p>
             </div>
-            <Admin />
+            <Admin view="staff" />
           </section>
         )}
 

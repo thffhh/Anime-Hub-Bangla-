@@ -1,11 +1,11 @@
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   CheckCircle2, Pencil, Plus, RefreshCw, Trash2, UploadCloud,
   Video, X, AlertCircle, Play
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
+import { API } from './api';
 
 type Anime = { id: string; title: string };
 
@@ -54,6 +54,7 @@ const emptyForm: EpisodeForm = {
 
 export default function EpisodeManager({ token, anime, onChanged }: Props) {
   const [selected, setSelected] = useState('');
+  const loadSequence = useRef(0);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [form, setForm] = useState<EpisodeForm>(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export default function EpisodeManager({ token, anime, onChanged }: Props) {
   }, [token]);
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     if (!selected || !token) {
       setEpisodes([]);
       return;
@@ -93,9 +95,12 @@ export default function EpisodeManager({ token, anime, onChanged }: Props) {
       const result = await api<{ data: Episode[] }>(
         `/api/admin/anime/${encodeURIComponent(selected)}/episodes`
       );
-      setEpisodes(result.data || []);
+      if (sequence === loadSequence.current) setEpisodes(result.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load episodes.');
+      if (sequence === loadSequence.current) {
+        setEpisodes([]);
+        setError(err instanceof Error ? err.message : 'Could not load episodes.');
+      }
     }
   }, [api, selected, token]);
 
@@ -281,6 +286,7 @@ export default function EpisodeManager({ token, anime, onChanged }: Props) {
 
     setError('');
     setNotice('');
+    setBusy(true);
 
     try {
       await api(`/api/admin/episodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -292,6 +298,8 @@ export default function EpisodeManager({ token, anime, onChanged }: Props) {
       setNotice('Episode deleted successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete episode.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -314,6 +322,8 @@ export default function EpisodeManager({ token, anime, onChanged }: Props) {
       <label className="select-label">
         Select anime
         <select value={selected} onChange={event => {
+          ++loadSequence.current;
+          setEpisodes([]);
           setSelected(event.target.value);
           reset();
           setError('');

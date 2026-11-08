@@ -12,7 +12,8 @@
     "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
     "android:add": "npm run android:add -w apps/web",
     "android:sync": "npm run android:sync -w apps/web",
-    "android:open": "npm run android:open -w apps/web"
+    "android:open": "npm run android:open -w apps/web",
+    "test": "npm run build -w apps/api && node apps/api/test/smoke.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

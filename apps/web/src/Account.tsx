@@ -6,7 +6,7 @@ import {
   RefreshCw, Shield, UserRound, X
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://anime-hub-bangla.onrender.com';
+import { API } from './api';
 
 type User = {
   id: string;
@@ -340,7 +340,7 @@ export default function Account() {
               <ChevronRight size={18} />
             </button>
 
-            {authMessage && <div className="ah-form-message" role="status">{authMessage}</div>}
+            {(authMessage || pageError) && <div className="ah-form-message" role="status">{authMessage || pageError}</div>}
 
             <div className="ah-auth-switch">
               {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}

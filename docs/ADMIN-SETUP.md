@@ -9,7 +9,7 @@
 6. Start the project with `npm run dev`.
 7. Open `http://localhost:5173/admin` and sign in.
 
-The admin dashboard currently includes login, database-backed overview counts, and creation/listing of anime draft records. Admin API routes enforce role checks. Episode creation/deletion is available through the API endpoints documented below; a complete visual episode editor and upload workflow are not included yet.
+The Super Admin dashboard includes anime draft creation, metadata editing, publishing and episode management. Cloudflare Stream direct upload is available when its server-side credentials and provider configuration are set. Admin API routes enforce role checks.
 
 ## Admin API
 - `POST /api/auth/login` with `{ "email": "...", "password": "..." }`
