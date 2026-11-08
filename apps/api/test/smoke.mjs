@@ -3,6 +3,13 @@ import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import { isBangladeshMobileNumber } from '../dist/payment-settings.js';
+import { isPublicHttpsUrl } from '../dist/public-url.js';
+
+assert.equal(isPublicHttpsUrl('https://example.com/app.apk'), true);
+assert.equal(isPublicHttpsUrl('http://example.com/app.apk'), false);
+assert.equal(isPublicHttpsUrl('javascript:alert(1)'), false);
+assert.equal(isPublicHttpsUrl('https://user:pass@example.com/app.apk'), false);
+assert.equal(isPublicHttpsUrl(''), false);
 
 assert.equal(isBangladeshMobileNumber('01712345678'), true);
 assert.equal(isBangladeshMobileNumber('+8801712345678'), true);
@@ -31,6 +38,11 @@ try {
   assert.equal(response.status, 200);
   const health = await response.json();
   assert.equal(health.database, 'not_configured');
+  const preflight = await fetch(`${base}/api/auth/login`, { method: 'OPTIONS', headers: { Origin: 'https://anime-hub-bangla-two.vercel.app', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://anime-hub-bangla-two.vercel.app');
+  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'test@example.com', password: 'example' }) });
+  assert.equal(login.status, 503); // Missing database should return a useful error, not a network failure.
   const catalogue = await fetch(`${base}/api/anime`);
   assert.equal(catalogue.status, 503);
   const homepage = await fetch(`${base}/api/cms/public/homepage`);

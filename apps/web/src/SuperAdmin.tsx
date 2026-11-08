@@ -6,14 +6,14 @@ import {
   LayoutDashboard, Lock, LogOut, Menu, Monitor, RefreshCw,
   Search, Server, Settings, Shield, ShieldCheck, Users, Wallet,
   X, Crown, Layers, Megaphone, MessageSquare, UserCog, Plug,
-  HardDrive, Eye, Palette, FileText, AlertTriangle
+  HardDrive, Eye, Palette, FileText, AlertTriangle, Smartphone
 } from 'lucide-react';
 
 import Admin from './Admin';
 import PartnerManagement from './PartnerManagement';
 import HomepageCovers from './HomepageCovers';
 
-import { API } from './api';
+import { API, loginError } from './api';
 
 type RoleUser = {
   id: string;
@@ -55,6 +55,8 @@ type SettingsData = {
   showPartners: boolean;
   showAbout: boolean;
   accentTheme: 'peach' | 'violet' | 'mint';
+  androidApkUrl: string;
+  androidVersion: string;
   paymentInstructions: string;
   bkashNumber: string;
   nagadNumber: string;
@@ -75,6 +77,8 @@ const defaultSettings: SettingsData = {
   showPartners: true,
   showAbout: true,
   accentTheme: 'peach',
+  androidApkUrl: '',
+  androidVersion: '',
   paymentInstructions: '',
   bkashNumber: '',
   nagadNumber: '',
@@ -85,6 +89,7 @@ const defaultSettings: SettingsData = {
 type Section =
   | 'overview'
   | 'website'
+  | 'android'
   | 'collaborations'
   | 'users'
   | 'payments'
@@ -103,6 +108,7 @@ const nav: {
 }[] = [
   { id: 'overview', label: 'Dashboard Overview', group: 'MAIN', icon: LayoutDashboard },
   { id: 'website', label: 'Website CMS', group: 'WEBSITE', icon: Globe },
+  { id: 'android', label: 'Android App', group: 'WEBSITE', icon: Smartphone },
   { id: 'collaborations', label: 'Collaboration Partners', group: 'WEBSITE', icon: Handshake },
   { id: 'content', label: 'Anime & Episodes', group: 'CONTENT', icon: Film },
   { id: 'operations', label: 'Platform Operations', group: 'CONTENT', icon: Layers },
@@ -434,7 +440,7 @@ export default function SuperAdmin() {
       setUser(result.user);
       setPassword('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed.');
+      setError(loginError(e));
     } finally {
       setLoading(false);
     }
@@ -951,6 +957,7 @@ export default function SuperAdmin() {
               }}>
                 {[
                   ['Website CMS', 'website', Globe],
+                  ['Android App', 'android', Smartphone],
                   ['Anime & Episodes', 'content', Film],
                   ['Partners', 'collaborations', Handshake],
                   ['Users', 'users', Users],
@@ -1117,6 +1124,24 @@ export default function SuperAdmin() {
                 are editable here at present.
               </p>
             </div>
+          </section>
+        )}
+
+        {section === 'android' && (
+          <section style={panelStyle}>
+            <SectionTitle title="Android App Download" description="Publish or remove the public download link for your signed Android release." />
+            <div className="sa-apk-note"><Smartphone size={20} /><span>This does not build or host an APK. Build and sign the app, upload it to trusted HTTPS hosting, and test the file before publishing the link.</span></div>
+            <form onSubmit={saveSettings} className="sa-apk-form">
+              <label>Signed APK download URL (HTTPS)
+                <input type="url" pattern="https://.+" title="Enter an HTTPS URL" maxLength={2000} value={settings.androidApkUrl} onChange={e => setSettings(old => ({ ...old, androidApkUrl: e.target.value }))} placeholder="https://example.com/app-release.apk" />
+              </label>
+              <label>Version label (optional)
+                <input maxLength={40} value={settings.androidVersion} onChange={e => setSettings(old => ({ ...old, androidVersion: e.target.value }))} placeholder="e.g. 1.0.0" />
+              </label>
+              <p>Leave the URL empty and save to hide the download button. Only use a release you own and trust; the URL is public.</p>
+              {!settingsLoaded && <p role="alert">Settings could not be loaded. Refresh before saving.</p>}
+              <button disabled={loading || !settingsLoaded} style={buttonStyle}>{loading ? 'Saving…' : 'Save Android settings'}</button>
+            </form>
           </section>
         )}
 

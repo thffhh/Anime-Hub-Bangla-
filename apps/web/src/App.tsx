@@ -15,7 +15,7 @@ import {
   Clapperboard,
   RefreshCw,
   Globe,
-  ExternalLink, ChevronLeft
+  ExternalLink, ChevronLeft, Smartphone, Download
 } from 'lucide-react';
 
 import SuperAdmin from './SuperAdmin';
@@ -96,7 +96,7 @@ function Home() {
   const [accentTheme, setAccentTheme] = useState<'peach' | 'violet' | 'mint'>('peach');
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [siteSettings, setSiteSettings] = useState<{ siteName?: string; tagline?: string; heroTitle?: string; heroSubtitle?: string; announcement?: string; contactEmail?: string; showMovies?: boolean; showStudios?: boolean; showPartners?: boolean; showAbout?: boolean }>({});
+  const [siteSettings, setSiteSettings] = useState<{ siteName?: string; tagline?: string; heroTitle?: string; heroSubtitle?: string; announcement?: string; contactEmail?: string; androidApkUrl?: string; androidVersion?: string; showMovies?: boolean; showStudios?: boolean; showPartners?: boolean; showAbout?: boolean }>({});
 
   async function loadAnime(signal?: AbortSignal) {
     setLoading(true);
@@ -178,7 +178,7 @@ function Home() {
         if (result?.settings && typeof result.settings === 'object') {
           const raw = result.settings;
           const safeSettings: Record<string, string | boolean> = {};
-          for (const key of ['siteName', 'tagline', 'heroTitle', 'heroSubtitle', 'announcement', 'contactEmail']) {
+          for (const key of ['siteName', 'tagline', 'heroTitle', 'heroSubtitle', 'announcement', 'contactEmail', 'androidApkUrl', 'androidVersion']) {
             if (typeof raw[key] === 'string') safeSettings[key] = raw[key];
           }
           for (const key of ['showMovies', 'showStudios', 'showPartners', 'showAbout']) {
@@ -227,6 +227,12 @@ function Home() {
       return matchesSearch && matchesGenre;
     });
   }, [items, query, genre]);
+
+  let androidUrl = '';
+  try {
+    const url = new URL(siteSettings.androidApkUrl || '');
+    if (url.protocol === 'https:' && !url.username && !url.password) androidUrl = url.href;
+  } catch { /* no configured download */ }
 
   const closeMenu = () => setMenuOpen(false);
   const cover = covers[coverIndex] || null;
@@ -315,6 +321,7 @@ function Home() {
           <a href="/account" onClick={closeMenu}>
             Sign in / Join
           </a>
+          {androidUrl && <a href={androidUrl} onClick={closeMenu} target="_blank" rel="noopener noreferrer">Download Android App</a>}
         </div>
       )}
 
@@ -697,6 +704,12 @@ function Home() {
           </div>
         </section>}
 
+        {androidUrl && <section className="android-download" aria-labelledby="android-title">
+          <div className="android-icon"><Smartphone size={29} /></div>
+          <div><div className="eyebrow">TAKE YOUR STORIES WITH YOU</div><h2 id="android-title">Anime Hub, on Android.</h2><p>Download the Android app{siteSettings.androidVersion ? ` · ${siteSettings.androidVersion}` : ''} and keep your anime community close.</p></div>
+          <a className="primary" href={androidUrl} target="_blank" rel="noopener noreferrer"><Download size={18} /> Download Android App</a>
+        </section>}
+
         <section className="catalog" id="privacy">
           <div className="eyebrow">YOUR DATA</div>
           <h2>Privacy</h2>
@@ -742,6 +755,7 @@ function Home() {
           <a href="#privacy">Privacy</a>
           <a href="#terms">Terms</a>
           <a href="#copyright">Copyright</a>
+          {androidUrl && <a href={androidUrl} target="_blank" rel="noopener noreferrer">Android App</a>}
           {siteSettings.contactEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(siteSettings.contactEmail) && <a href={`mailto:${siteSettings.contactEmail}`}>Contact</a>}
         </span>
       </footer>

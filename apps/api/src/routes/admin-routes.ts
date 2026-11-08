@@ -6,6 +6,7 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { z } from 'zod';
 import { pool } from '../db.js';
 import { isBangladeshMobileNumber } from '../payment-settings.js';
+import { isPublicHttpsUrl } from '../public-url.js';
 import { requireAuth, requireRoles } from '../auth.js';
 
 const router = Router();
@@ -1227,6 +1228,8 @@ const siteSettingsSchema = z.object({
   showPartners: z.boolean().optional(),
   showAbout: z.boolean().optional(),
   accentTheme: z.enum(['peach', 'violet', 'mint']).optional(),
+  androidApkUrl: z.string().trim().max(2000).refine(value => !value || isPublicHttpsUrl(value), 'Use a valid HTTPS download URL without credentials').optional(),
+  androidVersion: z.string().trim().max(40).optional(),
   paymentInstructions: z.string().trim().max(1000).optional(),
   bkashNumber: z.string().trim().refine(value => !value || isBangladeshMobileNumber(value), 'Enter a Bangladesh mobile number (01… or +8801…)').optional(),
   nagadNumber: z.string().trim().refine(value => !value || isBangladeshMobileNumber(value), 'Enter a Bangladesh mobile number (01… or +8801…)').optional(),
