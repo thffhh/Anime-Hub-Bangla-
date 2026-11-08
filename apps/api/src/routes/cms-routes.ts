@@ -89,7 +89,7 @@ router.get('/public/homepage', async (_req, res) => {
           'heroTitle', 'heroSubtitle', 'contactEmail',
           'maintenanceMode', 'showMovies', 'showStudios',
           'showPartners', 'showAbout', 'accentTheme',
-          'monthlyPriceBdt', 'yearlyPriceBdt', 'paymentInstructions', 'bkashNumber', 'nagadNumber', 'heroCovers'
+          'monthlyPriceBdt', 'yearlyPriceBdt', 'paymentInstructions', 'bkashNumber', 'nagadNumber', 'heroCovers', 'androidApkUrl', 'androidVersion'
         )
       `)
     ]);

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import EpisodeManager from './EpisodeManager';
 
-import { API } from './api';
+import { API, loginError } from './api';
 
 type User = {
   email: string;
@@ -298,7 +298,7 @@ export default function Admin({ view = 'operations' }: { view?: AdminView }) {
       setUser(result.user);
       setPassword('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed.');
+      setError(loginError(err));
     } finally {
       setBusy(false);
     }

@@ -6,7 +6,7 @@ import {
   RefreshCw, Shield, UserRound, X
 } from 'lucide-react';
 
-import { API } from './api';
+import { API, loginError } from './api';
 
 type User = {
   id: string;
@@ -278,7 +278,7 @@ export default function Account() {
       setAuthMessage('');
       await loadAccount(result.token);
     } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : 'Something went wrong.');
+      setAuthMessage(loginError(error));
     } finally {
       setAuthLoading(false);
     }
