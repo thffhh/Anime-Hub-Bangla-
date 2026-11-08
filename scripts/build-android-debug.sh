@@ -9,8 +9,9 @@ cd apps/web
 if [[ ! -d android ]]; then npx cap add android; fi
 npx cap sync android
 # Capacitor's template uses the much larger -all archive and a 10s timeout;
-# use the smaller binary distribution and a longer network timeout.
-node -e "const fs=require('fs');const p='android/gradle/wrapper/gradle-wrapper.properties';let s=fs.readFileSync(p,'utf8').replace(/distributionUrl=.*$/m,'distributionUrl=https\\\\://downloads.gradle.org/distributions/gradle-8.2.1-bin.zip').replace(/networkTimeout=\\d+/,'networkTimeout=120000');fs.writeFileSync(p,s)"
+# use a mirror for the smaller binary distribution with the official SHA-256
+# pinned below (the upstream GitHub release download can return HTTP 504).
+node -e "const fs=require('fs');const p='android/gradle/wrapper/gradle-wrapper.properties';let s=fs.readFileSync(p,'utf8').replace(/distributionUrl=.*$/m,'distributionUrl=https\\\\://repo.huaweicloud.com/gradle/gradle-8.2.1-bin.zip').replace(/networkTimeout=\\d+/,'networkTimeout=120000');if(!s.includes('distributionSha256Sum='))s+='\\ndistributionSha256Sum=03ec176d388f2aa99defcadc3ac6adf8dd2bce5145a129659537c0874dea5ad1\\n';fs.writeFileSync(p,s)"
 cd android
 RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 chmod +x gradlew
